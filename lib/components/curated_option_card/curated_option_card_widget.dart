@@ -33,6 +33,8 @@ class _CuratedOptionCardWidgetState extends State<CuratedOptionCardWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => CuratedOptionCardModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

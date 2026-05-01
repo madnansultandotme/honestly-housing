@@ -38,6 +38,8 @@ class _VisualApprovalCardWidgetState extends State<VisualApprovalCardWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => VisualApprovalCardModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

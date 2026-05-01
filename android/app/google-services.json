@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "656663435593",
+    "project_id": "honestlyhousing-4d7f0",
+    "storage_bucket": "honestlyhousing-4d7f0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:656663435593:android:6e32755d81dd8d5cc4e298",
+        "android_client_info": {
+          "package_name": "com.zeppelin.honestly"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDMvIpmV9zf3nWdd_XkeLHdVj8XkG1Eido"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

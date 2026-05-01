@@ -31,6 +31,8 @@ class _DueThisWeekListWidgetState extends State<DueThisWeekListWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => DueThisWeekListModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

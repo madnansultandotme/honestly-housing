@@ -32,6 +32,8 @@ class _StatusBadgeWidgetState extends State<StatusBadgeWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => StatusBadgeModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

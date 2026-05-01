@@ -32,6 +32,8 @@ class _CatagoryChecklistWidgetState extends State<CatagoryChecklistWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => CatagoryChecklistModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

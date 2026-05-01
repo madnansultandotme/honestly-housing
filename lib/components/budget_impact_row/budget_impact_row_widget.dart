@@ -32,6 +32,8 @@ class _BudgetImpactRowWidgetState extends State<BudgetImpactRowWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => BudgetImpactRowModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

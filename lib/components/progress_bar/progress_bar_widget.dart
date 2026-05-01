@@ -31,6 +31,8 @@ class _ProgressBarWidgetState extends State<ProgressBarWidget> {
   void initState() {
     super.initState();
     _model = createModel(context, () => ProgressBarModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

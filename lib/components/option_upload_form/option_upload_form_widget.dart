@@ -44,6 +44,8 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
 
     _model.textController3 ??= TextEditingController();
     _model.textFieldFocusNode3 ??= FocusNode();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override

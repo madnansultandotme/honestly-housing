@@ -36,6 +36,8 @@ class _RoomAssignmentSelectorWidgetState
   void initState() {
     super.initState();
     _model = createModel(context, () => RoomAssignmentSelectorModel());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
   }
 
   @override
