@@ -88,15 +88,19 @@ class _MessagesWidgetState extends State<MessagesWidget> {
   }
 
   Future<void> _sendMessage() async {
-    if (_model.textController.text.trim().isEmpty || _projectId == null) {
+    if (_model.textController == null || _model.textController!.text.trim().isEmpty || _projectId == null) {
       return;
     }
 
     try {
       // Get user data
-      final userDoc = await UsersRecord.getDocumentOnce(currentUserReference!);
-      final userName = userDoc?.displayName ?? 'Unknown User';
-      final userRole = userDoc?.role ?? 'client';
+      final userDocSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserUid)
+          .get();
+      final userData = userDocSnap.data() ?? {};
+      final userName = userData['display_name'] as String? ?? 'Unknown User';
+      final userRole = userData['role'] as String? ?? 'client';
 
       // Send message
       await FirebaseFirestore.instance
@@ -107,13 +111,13 @@ class _MessagesWidgetState extends State<MessagesWidget> {
         'senderId': currentUserUid,
         'senderName': userName,
         'senderRole': userRole,
-        'text': _model.textController.text.trim(),
+        'text': _model.textController!.text.trim(),
         'readBy': [currentUserUid],
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       // Clear input
-      _model.textController.clear();
+      _model.textController?.clear();
 
       // Scroll to bottom
       Future.delayed(Duration(milliseconds: 100), () {
@@ -399,6 +403,17 @@ class _MessagesWidgetState extends State<MessagesWidget> {
                     }
                   });
 
+                  // Mark unread messages as read
+                  for (final doc in messages) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final readBy = List<String>.from(data['readBy'] ?? []);
+                    if (!readBy.contains(currentUserUid)) {
+                      doc.reference.update({
+                        'readBy': FieldValue.arrayUnion([currentUserUid]),
+                      });
+                    }
+                  }
+
                   return ListView.builder(
                     controller: _scrollController,
                     padding: EdgeInsets.fromLTRB(0, 16.0, 0, 16.0),
@@ -408,8 +423,73 @@ class _MessagesWidgetState extends State<MessagesWidget> {
                       final messageData = messageDoc.data() as Map<String, dynamic>;
                       final senderId = messageData['senderId'] ?? '';
                       final isSentByMe = senderId == currentUserUid;
+                      final timestamp = messageData['createdAt'] as Timestamp?;
 
-                      return _buildMessageBubble(messageData, isSentByMe);
+                      // Date separator logic
+                      Widget? dateSeparator;
+                      if (timestamp != null) {
+                        final messageDate = timestamp.toDate();
+                        bool showSeparator = false;
+
+                        if (index == 0) {
+                          showSeparator = true;
+                        } else {
+                          final prevData = messages[index - 1].data() as Map<String, dynamic>;
+                          final prevTimestamp = prevData['createdAt'] as Timestamp?;
+                          if (prevTimestamp != null) {
+                            final prevDate = prevTimestamp.toDate();
+                            if (messageDate.day != prevDate.day ||
+                                messageDate.month != prevDate.month ||
+                                messageDate.year != prevDate.year) {
+                              showSeparator = true;
+                            }
+                          }
+                        }
+
+                        if (showSeparator) {
+                          final now = DateTime.now();
+                          final today = DateTime(now.year, now.month, now.day);
+                          final msgDay = DateTime(messageDate.year, messageDate.month, messageDate.day);
+                          String label;
+                          if (msgDay == today) {
+                            label = 'Today';
+                          } else if (msgDay == today.subtract(Duration(days: 1))) {
+                            label = 'Yesterday';
+                          } else {
+                            label = DateFormat('EEEE, MMM d').format(messageDate);
+                          }
+
+                          dateSeparator = Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.0),
+                            child: Row(
+                              children: [
+                                Expanded(child: Divider(color: Color(0xFFEDE8E2), thickness: 1.0)),
+                                Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 12.0),
+                                  child: Text(
+                                    label,
+                                    style: FlutterFlowTheme.of(context).labelSmall.override(
+                                          font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                          color: Color(0xFF8B8680),
+                                          fontSize: 10.0,
+                                          letterSpacing: 0.5,
+                                        ),
+                                  ),
+                                ),
+                                Expanded(child: Divider(color: Color(0xFFEDE8E2), thickness: 1.0)),
+                              ],
+                            ),
+                          );
+                        }
+                      }
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (dateSeparator != null) dateSeparator,
+                          _buildMessageBubble(messageData, isSentByMe),
+                        ],
+                      );
                     },
                   );
                 },

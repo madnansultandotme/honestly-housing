@@ -9,6 +9,9 @@ export 'builder_selection_item_detail_model.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class BuilderSelectionItemDetailWidget extends StatefulWidget {
   const BuilderSelectionItemDetailWidget({
@@ -155,6 +158,651 @@ class _BuilderSelectionItemDetailWidgetState
         _isSaving = false;
       });
     }
+  }
+
+  // --- Curated Options Management ---
+
+  Future<void> _showAddOptionSheet({Map<String, dynamic>? existingOption, String? existingId}) async {
+    final nameCtrl = TextEditingController(text: existingOption?['name'] ?? '');
+    final priceCtrl = TextEditingController(
+      text: existingOption?['price']?.toString() ?? '',
+    );
+    final linkCtrl = TextEditingController(text: existingOption?['linkUrl'] ?? '');
+    String selectedTier = existingOption?['tier'] ?? 'good';
+    String? imageUrl = existingOption?['imageUrl'];
+    bool uploading = false;
+
+    final tiers = ['good', 'better', 'best'];
+    final tierLabels = {'good': 'Good', 'better': 'Better', 'best': 'Best'};
+    final tierColors = {
+      'good': Color(0xFF8B8680),
+      'better': Color(0xFFB8956A),
+      'best': Color(0xFF27AE60),
+    };
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 24.0,
+                right: 24.0,
+                top: 24.0,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24.0,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40.0,
+                        height: 4.0,
+                        decoration: BoxDecoration(
+                          color: Color(0xFFD4C4B0),
+                          borderRadius: BorderRadius.circular(2.0),
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 20.0),
+                    Text(
+                      existingId != null ? 'Edit Option' : 'Add Curated Option',
+                      style: FlutterFlowTheme.of(context).titleMedium.override(
+                            font: GoogleFonts.interTight(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            color: Color(0xFF2C2420),
+                            fontSize: 18.0,
+                          ),
+                    ),
+                    SizedBox(height: 20.0),
+
+                    // Tier selector
+                    Text(
+                      'TIER',
+                      style: FlutterFlowTheme.of(context).labelSmall.override(
+                            font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                            color: Color(0xFF8B8680),
+                            fontSize: 10.0,
+                            letterSpacing: 1.2,
+                          ),
+                    ),
+                    SizedBox(height: 8.0),
+                    Row(
+                      children: tiers.map((tier) {
+                        final isSelected = selectedTier == tier;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () => setSheetState(() => selectedTier = tier),
+                            child: Container(
+                              margin: EdgeInsets.symmetric(horizontal: 4.0),
+                              padding: EdgeInsets.symmetric(vertical: 12.0),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? tierColors[tier]!.withOpacity(0.15)
+                                    : Color(0xFFF5F0EB),
+                                borderRadius: BorderRadius.circular(12.0),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? tierColors[tier]!
+                                      : Colors.transparent,
+                                  width: 2.0,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(
+                                    tier == 'good'
+                                        ? Icons.star_border
+                                        : tier == 'better'
+                                            ? Icons.star_half
+                                            : Icons.star,
+                                    color: tierColors[tier],
+                                    size: 20.0,
+                                  ),
+                                  SizedBox(height: 4.0),
+                                  Text(
+                                    tierLabels[tier]!,
+                                    style: FlutterFlowTheme.of(context)
+                                        .labelSmall
+                                        .override(
+                                          font: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          color: isSelected
+                                              ? tierColors[tier]
+                                              : Color(0xFF8B8680),
+                                          fontSize: 11.0,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    SizedBox(height: 16.0),
+
+                    // Option name
+                    TextFormField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        labelText: 'Option Name',
+                        hintText: 'e.g. Premium Quartzite',
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.5),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFB8956A), width: 1.5),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        filled: true,
+                        fillColor: Color(0xFFFAF8F5),
+                        contentPadding: EdgeInsets.all(16.0),
+                      ),
+                      style: FlutterFlowTheme.of(context).bodyMedium.override(
+                            font: GoogleFonts.inter(),
+                            color: Color(0xFF2C2420),
+                          ),
+                    ),
+                    SizedBox(height: 12.0),
+
+                    // Price
+                    TextFormField(
+                      controller: priceCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Price',
+                        hintText: '0.00',
+                        prefixText: '\$ ',
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.5),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFB8956A), width: 1.5),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        filled: true,
+                        fillColor: Color(0xFFFAF8F5),
+                        contentPadding: EdgeInsets.all(16.0),
+                      ),
+                      style: FlutterFlowTheme.of(context).bodyMedium.override(
+                            font: GoogleFonts.inter(),
+                            color: Color(0xFF2C2420),
+                          ),
+                    ),
+                    SizedBox(height: 12.0),
+
+                    // Link
+                    TextFormField(
+                      controller: linkCtrl,
+                      keyboardType: TextInputType.url,
+                      decoration: InputDecoration(
+                        labelText: 'Product Link (optional)',
+                        hintText: 'https://',
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.5),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: Color(0xFFB8956A), width: 1.5),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        filled: true,
+                        fillColor: Color(0xFFFAF8F5),
+                        contentPadding: EdgeInsets.all(16.0),
+                      ),
+                      style: FlutterFlowTheme.of(context).bodyMedium.override(
+                            font: GoogleFonts.inter(),
+                            color: Color(0xFF2C2420),
+                          ),
+                    ),
+                    SizedBox(height: 20.0),
+
+                    // Image upload button
+                    InkWell(
+                      onTap: () async {
+                        final picker = ImagePicker();
+                        final picked = await picker.pickImage(
+                          source: ImageSource.gallery,
+                          maxWidth: 1024,
+                          imageQuality: 80,
+                        );
+                        if (picked != null) {
+                          setSheetState(() => uploading = true);
+                          try {
+                            final ref = FirebaseStorage.instance
+                                .ref()
+                                .child('options')
+                                .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+                            await ref.putFile(File(picked.path));
+                            final url = await ref.getDownloadURL();
+                            setSheetState(() {
+                              imageUrl = url;
+                              uploading = false;
+                            });
+                          } catch (e) {
+                            setSheetState(() => uploading = false);
+                          }
+                        }
+                      },
+                      child: Container(
+                        width: double.infinity,
+                        height: 100.0,
+                        decoration: BoxDecoration(
+                          color: Color(0xFFF5F0EB),
+                          borderRadius: BorderRadius.circular(12.0),
+                          border: Border.all(
+                            color: Color(0xFFD4C4B0),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: uploading
+                            ? Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFFB8956A),
+                                  ),
+                                ),
+                              )
+                            : imageUrl != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    child: Image.network(
+                                      imageUrl!,
+                                      fit: BoxFit.cover,
+                                      width: double.infinity,
+                                      height: 100.0,
+                                    ),
+                                  )
+                                : Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_photo_alternate_outlined,
+                                        color: Color(0xFFB8956A),
+                                        size: 32.0,
+                                      ),
+                                      SizedBox(height: 4.0),
+                                      Text(
+                                        'Add Image',
+                                        style: FlutterFlowTheme.of(context)
+                                            .labelSmall
+                                            .override(
+                                              font: GoogleFonts.inter(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              color: Color(0xFF8B8680),
+                                              fontSize: 11.0,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                      ),
+                    ),
+                    SizedBox(height: 24.0),
+
+                    // Save button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52.0,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          if (nameCtrl.text.trim().isEmpty) return;
+
+                          final optionData = {
+                            'name': nameCtrl.text.trim(),
+                            'tier': selectedTier,
+                            'price': _parseAmount(priceCtrl.text),
+                            'linkUrl': linkCtrl.text.trim(),
+                            'imageUrl': imageUrl ?? '',
+                            'createdAt': FieldValue.serverTimestamp(),
+                          };
+
+                          final optionsRef = FirebaseFirestore.instance
+                              .collection('projects')
+                              .doc(widget.projectId)
+                              .collection('items')
+                              .doc(widget.itemId)
+                              .collection('options');
+
+                          if (existingId != null) {
+                            await optionsRef.doc(existingId).update(optionData);
+                          } else {
+                            await optionsRef.add(optionData);
+                          }
+
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFB8956A),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                        ),
+                        child: Text(
+                          existingId != null ? 'Update Option' : 'Add Option',
+                          style: FlutterFlowTheme.of(context).titleSmall.override(
+                                font: GoogleFonts.interTight(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                color: Colors.white,
+                              ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteOption(String optionId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Option'),
+        content: Text('Are you sure you want to remove this option?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(widget.projectId)
+          .collection('items')
+          .doc(widget.itemId)
+          .collection('options')
+          .doc(optionId)
+          .delete();
+    }
+  }
+
+  Widget _buildCuratedOptionsSection() {
+    final tierLabels = {'good': 'Good', 'better': 'Better', 'best': 'Best'};
+    final tierColors = {
+      'good': Color(0xFF8B8680),
+      'better': Color(0xFFB8956A),
+      'best': Color(0xFF27AE60),
+    };
+    final tierIcons = {
+      'good': Icons.star_border,
+      'better': Icons.star_half,
+      'best': Icons.star,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Curated Options',
+              style: FlutterFlowTheme.of(context).labelMedium.override(
+                    font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                    color: Color(0xFF5C5450),
+                    fontSize: 13.0,
+                    letterSpacing: 0.3,
+                  ),
+            ),
+            InkWell(
+              onTap: () => _showAddOptionSheet(),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                decoration: BoxDecoration(
+                  color: Color(0xFFB8956A),
+                  borderRadius: BorderRadius.circular(20.0),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, color: Colors.white, size: 14.0),
+                    SizedBox(width: 4.0),
+                    Text(
+                      'Add',
+                      style: FlutterFlowTheme.of(context).labelSmall.override(
+                            font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                            color: Colors.white,
+                            fontSize: 11.0,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 8.0),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('projects')
+              .doc(widget.projectId)
+              .collection('items')
+              .doc(widget.itemId)
+              .collection('options')
+              .orderBy('createdAt')
+              .snapshots(),
+          builder: (context, optSnapshot) {
+            if (!optSnapshot.hasData || optSnapshot.data!.docs.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(24.0),
+                decoration: BoxDecoration(
+                  color: Color(0xFFF5F0EB),
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(color: Color(0xFFEDE8E2)),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_outlined,
+                      color: Color(0xFFD4C4B0),
+                      size: 32.0,
+                    ),
+                    SizedBox(height: 8.0),
+                    Text(
+                      'No curated options yet',
+                      style: FlutterFlowTheme.of(context).bodySmall.override(
+                            font: GoogleFonts.inter(),
+                            color: Color(0xFF8B8680),
+                            fontSize: 12.0,
+                          ),
+                    ),
+                    Text(
+                      'Add Good / Better / Best options for clients',
+                      style: FlutterFlowTheme.of(context).bodySmall.override(
+                            font: GoogleFonts.inter(),
+                            color: Color(0xFFBDB8B4),
+                            fontSize: 11.0,
+                          ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final options = optSnapshot.data!.docs;
+            return Column(
+              children: options.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final tier = data['tier'] ?? 'good';
+                final optName = data['name'] ?? '';
+                final price = (data['price'] ?? 0).toDouble();
+                final optImage = data['imageUrl'] as String?;
+                final tierColor = tierColors[tier] ?? Color(0xFF8B8680);
+
+                return Container(
+                  margin: EdgeInsets.only(bottom: 8.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12.0),
+                    border: Border.all(color: Color(0xFFEDE8E2)),
+                    boxShadow: [
+                      BoxShadow(
+                        blurRadius: 4.0,
+                        color: Color(0x0A000000),
+                        offset: Offset(0.0, 2.0),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        // Image or placeholder
+                        Container(
+                          width: 48.0,
+                          height: 48.0,
+                          decoration: BoxDecoration(
+                            color: Color(0xFFF5F0EB),
+                            borderRadius: BorderRadius.circular(10.0),
+                          ),
+                          child: optImage != null && optImage.isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                  child: Image.network(
+                                    optImage,
+                                    fit: BoxFit.cover,
+                                    width: 48.0,
+                                    height: 48.0,
+                                  ),
+                                )
+                              : Icon(
+                                  tierIcons[tier] ?? Icons.star_border,
+                                  color: tierColor,
+                                  size: 24.0,
+                                ),
+                        ),
+                        SizedBox(width: 12.0),
+
+                        // Info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 8.0,
+                                      vertical: 2.0,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: tierColor.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6.0),
+                                    ),
+                                    child: Text(
+                                      tierLabels[tier] ?? tier,
+                                      style: FlutterFlowTheme.of(context)
+                                          .labelSmall
+                                          .override(
+                                            font: GoogleFonts.inter(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            color: tierColor,
+                                            fontSize: 9.0,
+                                            letterSpacing: 0.5,
+                                          ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 2.0),
+                              Text(
+                                optName,
+                                style: FlutterFlowTheme.of(context)
+                                    .bodyMedium
+                                    .override(
+                                      font: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      color: Color(0xFF2C2420),
+                                      fontSize: 13.0,
+                                    ),
+                              ),
+                              Text(
+                                '\$${price.toStringAsFixed(2)}',
+                                style: FlutterFlowTheme.of(context)
+                                    .bodySmall
+                                    .override(
+                                      font: GoogleFonts.inter(),
+                                      color: Color(0xFF8B8680),
+                                      fontSize: 12.0,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Actions
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            InkWell(
+                              onTap: () => _showAddOptionSheet(
+                                existingOption: data,
+                                existingId: doc.id,
+                              ),
+                              child: Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  color: Color(0xFFB8956A),
+                                  size: 18.0,
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () => _deleteOption(doc.id),
+                              child: Padding(
+                                padding: EdgeInsets.all(6.0),
+                                child: Icon(
+                                  Icons.delete_outline,
+                                  color: Color(0xFFC0392B),
+                                  size: 18.0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
   }
 
   Widget _buildTextField({
@@ -666,6 +1314,8 @@ class _BuilderSelectionItemDetailWidgetState
 +                          maxLines: 4,
 +                          hintText: 'Add notes for the client or team',
 +                        ),
++                        SizedBox(height: 16.0),
++                        _buildCuratedOptionsSection(),
 +                        SizedBox(height: 12.0),
 +                        FFButtonWidget(
 +                          onPressed: _isSaving ? null : _saveChanges,

@@ -209,6 +209,123 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
     }
   }
 
+  Future<void> _saveAsTemplate() async {
+    final nameController = TextEditingController();
+    final templateName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Save as Template'),
+        content: TextField(
+          controller: nameController,
+          decoration: InputDecoration(
+            labelText: 'Template Name',
+            hintText: 'e.g. Luxury 4BR Standard',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, nameController.text.trim()), child: Text('Save')),
+        ],
+      ),
+    );
+
+    if (templateName == null || templateName.isEmpty) return;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users').doc(currentUserUid).get();
+      final orgId = (userDoc.data() ?? {})['builderOrgId'] as String? ?? '';
+      if (orgId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No builder org found.'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('builderOrgs').doc(orgId)
+          .collection('templates').add({
+        'name': templateName,
+        'rooms': _selectedRooms,
+        'categories': _selectedCategories,
+        'bedrooms': _parseCount(_model.textController5.text),
+        'bathrooms': _parseCount(_model.textController6.text),
+        'offices': _parseCount(_model.textController7.text),
+        'fixtures': _parseCount(_model.textController8.text),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Template "$templateName" saved.'), backgroundColor: Color(0xFFB8956A)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _loadTemplate() async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users').doc(currentUserUid).get();
+      final orgId = (userDoc.data() ?? {})['builderOrgId'] as String? ?? '';
+      if (orgId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No builder org found.'), backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      final templatesSnap = await FirebaseFirestore.instance
+          .collection('builderOrgs').doc(orgId)
+          .collection('templates')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      if (templatesSnap.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No templates found.'), backgroundColor: Color(0xFF8B8680)),
+        );
+        return;
+      }
+
+      final selected = await showDialog<DocumentSnapshot>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: Text('Load Template'),
+          children: templatesSnap.docs.map((doc) {
+            final name = (doc.data())['name'] ?? 'Untitled';
+            return SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, doc),
+              child: Text(name),
+            );
+          }).toList(),
+        ),
+      );
+
+      if (selected == null) return;
+
+      final tData = selected.data() as Map<String, dynamic>;
+      setState(() {
+        _selectedRooms = List<String>.from(tData['rooms'] ?? []);
+        _selectedCategories = List<String>.from(tData['categories'] ?? []);
+        _model.textController5.text = (tData['bedrooms'] ?? '').toString();
+        _model.textController6.text = (tData['bathrooms'] ?? '').toString();
+        _model.textController7.text = (tData['offices'] ?? '').toString();
+        _model.textController8.text = (tData['fixtures'] ?? '').toString();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Template loaded.'), backgroundColor: Color(0xFFB8956A)),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _model.dispose();
@@ -272,7 +389,10 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                               ),
                               color: Color(0xFF8B8680),
                               fontSize: 12.0,
-                                      Row(
+                              letterSpacing: 0.0,
+                            ),
+                      ),
+                      Row(
                                         mainAxisSize: MainAxisSize.max,
                                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
@@ -388,22 +508,13 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                                           );
                                         }).toList(),
                                       ),
-                              letterSpacing: 0.0,
-                              fontWeight: FontWeight.normal,
-                              fontStyle: FlutterFlowTheme.of(context)
-                                  .labelSmall
-                                  .fontStyle,
-                            ),
-                      ),
                     ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.max,
                     children: [
-                      FFButtonWidget(
-                        onPressed: () {
-                          print('Button pressed ...');
-                        },
+                       FFButtonWidget(
+                        onPressed: _loadTemplate,
                         text: 'Load Template',
                         options: FFButtonOptions(
                           height: 36.0,
@@ -466,6 +577,34 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                           borderSide: BorderSide(
                             color: Colors.transparent,
                             width: 0.0,
+                          ),
+                          borderRadius: BorderRadius.circular(20.0),
+                        ),
+                      ),
+                      FFButtonWidget(
+                        onPressed: _saveAsTemplate,
+                        text: 'Save as Template',
+                        options: FFButtonOptions(
+                          height: 36.0,
+                          padding: EdgeInsetsDirectional.fromSTEB(
+                              14.0, 0.0, 14.0, 0.0),
+                          iconPadding: EdgeInsetsDirectional.fromSTEB(
+                              0.0, 0.0, 0.0, 0.0),
+                          color: Color(0xFFF5EDE3),
+                          textStyle:
+                              FlutterFlowTheme.of(context).labelMedium.override(
+                                    font: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    color: Color(0xFFB8956A),
+                                    fontSize: 12.0,
+                                    letterSpacing: 0.0,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                          elevation: 0.0,
+                          borderSide: BorderSide(
+                            color: Color(0xFFB8956A),
+                            width: 1.0,
                           ),
                           borderRadius: BorderRadius.circular(20.0),
                         ),

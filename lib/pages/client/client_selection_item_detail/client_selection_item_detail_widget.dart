@@ -688,6 +688,285 @@ class _ClientSelectionItemDetailWidgetState
                     ),
                   ),
 
+                  // Curated Options (Good / Better / Best)
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('projects')
+                        .doc(widget.projectId)
+                        .collection('items')
+                        .doc(widget.itemId)
+                        .collection('options')
+                        .orderBy('createdAt')
+                        .snapshots(),
+                    builder: (context, optSnapshot) {
+                      if (!optSnapshot.hasData || optSnapshot.data!.docs.isEmpty) {
+                        return SizedBox.shrink();
+                      }
+
+                      final options = optSnapshot.data!.docs;
+                      final tierLabels = {'good': 'Good', 'better': 'Better', 'best': 'Best'};
+                      final tierColors = {
+                        'good': Color(0xFF8B8680),
+                        'better': Color(0xFFB8956A),
+                        'best': Color(0xFF27AE60),
+                      };
+                      final tierIcons = {
+                        'good': Icons.star_border,
+                        'better': Icons.star_half,
+                        'best': Icons.star,
+                      };
+
+                      // Check if one is already selected
+                      final selectedOptionId = itemData['selectedOptionId'];
+
+                      return Padding(
+                        padding: EdgeInsetsDirectional.fromSTEB(20.0, 0.0, 20.0, 20.0),
+                        child: Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                blurRadius: 24.0,
+                                color: Color(0x1A000000),
+                                offset: Offset(0.0, 4.0),
+                              )
+                            ],
+                            borderRadius: BorderRadius.circular(20.0),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'CHOOSE YOUR OPTION',
+                                  style: FlutterFlowTheme.of(context).labelSmall.override(
+                                        font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                        color: Color(0xFF8B8680),
+                                        fontSize: 10.0,
+                                        letterSpacing: 1.2,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                                SizedBox(height: 4.0),
+                                Text(
+                                  'Select from curated options below',
+                                  style: FlutterFlowTheme.of(context).bodySmall.override(
+                                        font: GoogleFonts.inter(),
+                                        color: Color(0xFFBDB8B4),
+                                        fontSize: 12.0,
+                                      ),
+                                ),
+                                SizedBox(height: 16.0),
+                                ...options.map((doc) {
+                                  final optData = doc.data() as Map<String, dynamic>;
+                                  final tier = optData['tier'] ?? 'good';
+                                  final optName = optData['name'] ?? '';
+                                  final price = (optData['price'] ?? 0).toDouble();
+                                  final optImage = optData['imageUrl'] as String?;
+                                  final optLink = optData['linkUrl'] as String?;
+                                  final tierColor = tierColors[tier] ?? Color(0xFF8B8680);
+                                  final isSelected = selectedOptionId == doc.id;
+                                  final upgradeDiff = price - (allowance is num ? allowance.toDouble() : 0.0);
+
+                                  return GestureDetector(
+                                    onTap: locked ? null : () async {
+                                      try {
+                                        await FirebaseFirestore.instance
+                                            .collection('projects')
+                                            .doc(widget.projectId)
+                                            .collection('items')
+                                            .doc(widget.itemId)
+                                            .update({
+                                          'selectedOptionId': doc.id,
+                                          'actualCost': price,
+                                          'brand': optName,
+                                          'linkUrl': optLink ?? '',
+                                          'imageUrl': optImage ?? '',
+                                          'updatedAt': FieldValue.serverTimestamp(),
+                                        });
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Selected: $optName'),
+                                            backgroundColor: Color(0xFFB8956A),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Error selecting option: $e'),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      margin: EdgeInsets.only(bottom: 10.0),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? tierColor.withOpacity(0.08)
+                                            : Color(0xFFFAF8F5),
+                                        borderRadius: BorderRadius.circular(16.0),
+                                        border: Border.all(
+                                          color: isSelected
+                                              ? tierColor
+                                              : Color(0xFFEDE8E2),
+                                          width: isSelected ? 2.0 : 1.0,
+                                        ),
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(14.0),
+                                        child: Row(
+                                          children: [
+                                            // Image/icon
+                                            Container(
+                                              width: 56.0,
+                                              height: 56.0,
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFFF5F0EB),
+                                                borderRadius: BorderRadius.circular(12.0),
+                                              ),
+                                              child: optImage != null && optImage.isNotEmpty
+                                                  ? ClipRRect(
+                                                      borderRadius: BorderRadius.circular(12.0),
+                                                      child: Image.network(
+                                                        optImage,
+                                                        fit: BoxFit.cover,
+                                                        width: 56.0,
+                                                        height: 56.0,
+                                                        errorBuilder: (_, __, ___) => Icon(
+                                                          tierIcons[tier] ?? Icons.star_border,
+                                                          color: tierColor,
+                                                          size: 28.0,
+                                                        ),
+                                                      ),
+                                                    )
+                                                  : Icon(
+                                                      tierIcons[tier] ?? Icons.star_border,
+                                                      color: tierColor,
+                                                      size: 28.0,
+                                                    ),
+                                            ),
+                                            SizedBox(width: 14.0),
+
+                                            // Info
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    padding: EdgeInsets.symmetric(
+                                                      horizontal: 8.0,
+                                                      vertical: 3.0,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: tierColor.withOpacity(0.15),
+                                                      borderRadius: BorderRadius.circular(6.0),
+                                                    ),
+                                                    child: Text(
+                                                      tierLabels[tier] ?? tier,
+                                                      style: FlutterFlowTheme.of(context)
+                                                          .labelSmall
+                                                          .override(
+                                                            font: GoogleFonts.inter(
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                            color: tierColor,
+                                                            fontSize: 9.0,
+                                                            letterSpacing: 0.5,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  SizedBox(height: 4.0),
+                                                  Text(
+                                                    optName,
+                                                    style: FlutterFlowTheme.of(context)
+                                                        .bodyMedium
+                                                        .override(
+                                                          font: GoogleFonts.inter(
+                                                            fontWeight: FontWeight.w600,
+                                                          ),
+                                                          color: Color(0xFF2D2D2D),
+                                                          fontSize: 14.0,
+                                                        ),
+                                                  ),
+                                                  SizedBox(height: 2.0),
+                                                  Row(
+                                                    children: [
+                                                      Text(
+                                                        '\$${price.toStringAsFixed(2)}',
+                                                        style: FlutterFlowTheme.of(context)
+                                                            .bodySmall
+                                                            .override(
+                                                              font: GoogleFonts.inter(
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                              color: Color(0xFF2D2D2D),
+                                                              fontSize: 13.0,
+                                                            ),
+                                                      ),
+                                                      if (upgradeDiff != 0) ...[
+                                                        SizedBox(width: 8.0),
+                                                        Text(
+                                                          '${upgradeDiff > 0 ? '+' : ''}\$${upgradeDiff.toStringAsFixed(2)}',
+                                                          style: FlutterFlowTheme.of(context)
+                                                              .bodySmall
+                                                              .override(
+                                                                font: GoogleFonts.inter(
+                                                                  fontWeight: FontWeight.w600,
+                                                                ),
+                                                                color: upgradeDiff > 0
+                                                                    ? Color(0xFFB8956A)
+                                                                    : Color(0xFF27AE60),
+                                                                fontSize: 12.0,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            // Selection indicator
+                                            Container(
+                                              width: 28.0,
+                                              height: 28.0,
+                                              decoration: BoxDecoration(
+                                                color: isSelected
+                                                    ? tierColor
+                                                    : Colors.transparent,
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: isSelected
+                                                      ? tierColor
+                                                      : Color(0xFFD4C4B0),
+                                                  width: 2.0,
+                                                ),
+                                              ),
+                                              child: isSelected
+                                                  ? Icon(
+                                                      Icons.check,
+                                                      color: Colors.white,
+                                                      size: 16.0,
+                                                    )
+                                                  : null,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
                   // Action Buttons
                   if (canApprove)
                     Padding(

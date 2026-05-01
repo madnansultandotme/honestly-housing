@@ -4,6 +4,8 @@ import '/auth/firebase_auth/auth_util.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'builder_project_details_model.dart';
 export 'builder_project_details_model.dart';
 
@@ -60,6 +62,60 @@ class _BuilderProjectDetailsWidgetState
   @override
   Widget build(BuildContext context) {
     final projectId = widget.projectId ?? '';
+
+    Future<void> _exportMaterialsList() async {
+      try {
+        final itemsSnap = await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(projectId)
+            .collection('items')
+            .where('status', whereIn: ['approved', 'ordered', 'installed'])
+            .get();
+
+        if (itemsSnap.docs.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No approved items to export.'),
+              backgroundColor: Color(0xFF8B8680),
+            ),
+          );
+          return;
+        }
+
+        final csvRows = [
+          'Item Name,Category,Brand,Link,Allowance,Actual Cost,Status',
+        ];
+
+        for (final doc in itemsSnap.docs) {
+          final d = doc.data();
+          final name = (d['name'] ?? '').toString().replaceAll(',', ' ');
+          final cat = (d['categoryName'] ?? '').toString().replaceAll(',', ' ');
+          final brand = (d['brand'] ?? '').toString().replaceAll(',', ' ');
+          final link = (d['linkUrl'] ?? '').toString();
+          final allowance = (d['allowance'] ?? 0).toString();
+          final cost = (d['actualCost'] ?? 0).toString();
+          final status = (d['status'] ?? '').toString();
+          csvRows.add('$name,$cat,$brand,$link,$allowance,$cost,$status');
+        }
+
+        final csvString = csvRows.join('\n');
+        await Clipboard.setData(ClipboardData(text: csvString));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Materials list copied to clipboard (${itemsSnap.docs.length} items)'),
+            backgroundColor: Color(0xFFB8956A),
+          ),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error exporting: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
     
     if (projectId.isEmpty) {
       return Scaffold(
@@ -356,27 +412,29 @@ class _BuilderProjectDetailsWidgetState
                                   Padding(
                                     padding: EdgeInsetsDirectional.fromSTEB(
                                         0.0, 4.0, 0.0, 0.0),
-                                    child: Text(
-                                      'Marcus & Elena Whitfield',
-                                      style: FlutterFlowTheme.of(context)
-                                          .titleMedium
-                                          .override(
-                                            font: GoogleFonts.interTight(
-                                              fontWeight: FontWeight.w600,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .titleMedium
-                                                      .fontStyle,
-                                            ),
-                                            color: Colors.white,
-                                            fontSize: 16.0,
-                                            letterSpacing: 0.0,
-                                            fontWeight: FontWeight.w600,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleMedium
-                                                    .fontStyle,
-                                          ),
+                                    child: FutureBuilder<DocumentSnapshot>(
+                                      future: clientId.isNotEmpty
+                                          ? FirebaseFirestore.instance.collection('users').doc(clientId).get()
+                                          : null,
+                                      builder: (context, userSnap) {
+                                        final clientName = userSnap.hasData && userSnap.data!.exists
+                                            ? (userSnap.data!.data() as Map<String, dynamic>)['display_name'] ?? 'Client'
+                                            : 'No Client Assigned';
+                                        return Text(
+                                          clientName,
+                                          style: FlutterFlowTheme.of(context)
+                                              .titleMedium
+                                              .override(
+                                                font: GoogleFonts.interTight(
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                                color: Colors.white,
+                                                fontSize: 16.0,
+                                                letterSpacing: 0.0,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        );
+                                      },
                                     ),
                                   ),
                                   Padding(
@@ -391,7 +449,7 @@ class _BuilderProjectDetailsWidgetState
                                           size: 13.0,
                                         ),
                                         Text(
-                                          '42 Riverside Drive, Austin TX',
+                                          address.isNotEmpty ? address : 'No address set',
                                           style: FlutterFlowTheme.of(context)
                                               .labelSmall
                                               .override(
@@ -829,7 +887,7 @@ class _BuilderProjectDetailsWidgetState
                               padding: EdgeInsetsDirectional.fromSTEB(
                                   0.0, 2.0, 0.0, 0.0),
                               child: Text(
-                                '4',
+                                '${projectData['bedrooms'] ?? 0}',
                                 style: FlutterFlowTheme.of(context)
                                     .titleLarge
                                     .override(
@@ -900,7 +958,7 @@ class _BuilderProjectDetailsWidgetState
                               padding: EdgeInsetsDirectional.fromSTEB(
                                   0.0, 2.0, 0.0, 0.0),
                               child: Text(
-                                '3.5',
+                                '${projectData['bathrooms'] ?? 0}',
                                 style: FlutterFlowTheme.of(context)
                                     .titleLarge
                                     .override(
@@ -971,7 +1029,7 @@ class _BuilderProjectDetailsWidgetState
                               padding: EdgeInsetsDirectional.fromSTEB(
                                   0.0, 2.0, 0.0, 0.0),
                               child: Text(
-                                '127',
+                                '${projectData['fixtures'] ?? 0}',
                                 style: FlutterFlowTheme.of(context)
                                     .titleLarge
                                     .override(
@@ -1094,7 +1152,7 @@ class _BuilderProjectDetailsWidgetState
                                       padding: EdgeInsetsDirectional.fromSTEB(
                                           4.0, 0.0, 4.0, 0.0),
                                       child: Text(
-                                        'Awaiting 5',
+                                        'In Progress',
                                         style: FlutterFlowTheme.of(context)
                                             .labelSmall
                                             .override(
@@ -1122,209 +1180,90 @@ class _BuilderProjectDetailsWidgetState
                             ),
                           ],
                         ),
-                        Row(
-                          mainAxisSize: MainAxisSize.max,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Container(
-                              width: MediaQuery.sizeOf(context).width * 0.3,
-                              height: 70.0,
-                              decoration: BoxDecoration(
-                                color: Color(0xFFF0FAF0),
-                                borderRadius: BorderRadius.circular(12.0),
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.max,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      '21',
-                                      style: FlutterFlowTheme.of(context)
-                                          .titleLarge
-                                          .override(
-                                            font: GoogleFonts.interTight(
-                                              fontWeight: FontWeight.bold,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .titleLarge
-                                                      .fontStyle,
-                                            ),
-                                            color: Color(0xFF27AE60),
-                                            fontSize: 22.0,
-                                            letterSpacing: 0.0,
-                                            fontWeight: FontWeight.bold,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleLarge
-                                                    .fontStyle,
-                                          ),
+                        StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection('projects')
+                              .doc(projectId)
+                              .collection('items')
+                              .snapshots(),
+                          builder: (context, approvalSnap) {
+                            int approved = 0;
+                            int pending = 0;
+                            int revisions = 0;
+                            if (approvalSnap.hasData) {
+                              for (final doc in approvalSnap.data!.docs) {
+                                final d = doc.data() as Map<String, dynamic>;
+                                final s = (d['status'] ?? '').toString().toLowerCase();
+                                if (s == 'approved' || s == 'ordered' || s == 'installed') {
+                                  approved++;
+                                } else if (s == 'awaitingclientapproval') {
+                                  pending++;
+                                } else if (s == 'needsbuilderinput') {
+                                  revisions++;
+                                }
+                              }
+                            }
+                            return Row(
+                              mainAxisSize: MainAxisSize.max,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Container(
+                                  width: MediaQuery.sizeOf(context).width * 0.25,
+                                  height: 70.0,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFF0FAF0),
+                                    borderRadius: BorderRadius.circular(12.0),
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('$approved', style: FlutterFlowTheme.of(context).titleLarge.override(font: GoogleFonts.interTight(fontWeight: FontWeight.bold), color: Color(0xFF27AE60), fontSize: 22.0, letterSpacing: 0.0, fontWeight: FontWeight.bold)),
+                                        Text('Approved', style: FlutterFlowTheme.of(context).labelSmall.override(font: GoogleFonts.inter(fontWeight: FontWeight.w600), color: Color(0xFF27AE60), fontSize: 10.0, letterSpacing: 0.0, fontWeight: FontWeight.w600)),
+                                      ],
                                     ),
-                                    Padding(
-                                      padding: EdgeInsetsDirectional.fromSTEB(
-                                          0.0, 2.0, 0.0, 0.0),
-                                      child: Text(
-                                        'Approved',
-                                        style: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .override(
-                                              font: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w600,
-                                                fontStyle:
-                                                    FlutterFlowTheme.of(context)
-                                                        .labelSmall
-                                                        .fontStyle,
-                                              ),
-                                              color: Color(0xFF27AE60),
-                                              fontSize: 10.0,
-                                              letterSpacing: 0.0,
-                                              fontWeight: FontWeight.w600,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .labelSmall
-                                                      .fontStyle,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                            Container(
-                              width: MediaQuery.sizeOf(context).width * 0.3,
-                              height: 70.0,
-                              decoration: BoxDecoration(
-                                color: Color(0xFFFFF8F0),
-                                borderRadius: BorderRadius.circular(12.0),
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.max,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      '5',
-                                      style: FlutterFlowTheme.of(context)
-                                          .titleLarge
-                                          .override(
-                                            font: GoogleFonts.interTight(
-                                              fontWeight: FontWeight.bold,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .titleLarge
-                                                      .fontStyle,
-                                            ),
-                                            color: Color(0xFFE67E22),
-                                            fontSize: 22.0,
-                                            letterSpacing: 0.0,
-                                            fontWeight: FontWeight.bold,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleLarge
-                                                    .fontStyle,
-                                          ),
+                                Container(
+                                  width: MediaQuery.sizeOf(context).width * 0.25,
+                                  height: 70.0,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFFFF8F0),
+                                    borderRadius: BorderRadius.circular(12.0),
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('$pending', style: FlutterFlowTheme.of(context).titleLarge.override(font: GoogleFonts.interTight(fontWeight: FontWeight.bold), color: Color(0xFFE67E22), fontSize: 22.0, letterSpacing: 0.0, fontWeight: FontWeight.bold)),
+                                        Text('Pending', style: FlutterFlowTheme.of(context).labelSmall.override(font: GoogleFonts.inter(fontWeight: FontWeight.w600), color: Color(0xFFE67E22), fontSize: 10.0, letterSpacing: 0.0, fontWeight: FontWeight.w600)),
+                                      ],
                                     ),
-                                    Padding(
-                                      padding: EdgeInsetsDirectional.fromSTEB(
-                                          0.0, 2.0, 0.0, 0.0),
-                                      child: Text(
-                                        'Pending',
-                                        style: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .override(
-                                              font: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w600,
-                                                fontStyle:
-                                                    FlutterFlowTheme.of(context)
-                                                        .labelSmall
-                                                        .fontStyle,
-                                              ),
-                                              color: Color(0xFFE67E22),
-                                              fontSize: 10.0,
-                                              letterSpacing: 0.0,
-                                              fontWeight: FontWeight.w600,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .labelSmall
-                                                      .fontStyle,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                            Container(
-                              width: MediaQuery.sizeOf(context).width * 0.3,
-                              height: 70.0,
-                              decoration: BoxDecoration(
-                                color: Color(0xFFFFF0F0),
-                                borderRadius: BorderRadius.circular(12.0),
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.all(16.0),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.max,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      '3',
-                                      style: FlutterFlowTheme.of(context)
-                                          .titleLarge
-                                          .override(
-                                            font: GoogleFonts.interTight(
-                                              fontWeight: FontWeight.bold,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .titleLarge
-                                                      .fontStyle,
-                                            ),
-                                            color: Color(0xFFC0392B),
-                                            fontSize: 22.0,
-                                            letterSpacing: 0.0,
-                                            fontWeight: FontWeight.bold,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .titleLarge
-                                                    .fontStyle,
-                                          ),
+                                Container(
+                                  width: MediaQuery.sizeOf(context).width * 0.25,
+                                  height: 70.0,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFFFF0F0),
+                                    borderRadius: BorderRadius.circular(12.0),
+                                  ),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('$revisions', style: FlutterFlowTheme.of(context).titleLarge.override(font: GoogleFonts.interTight(fontWeight: FontWeight.bold), color: Color(0xFFC0392B), fontSize: 22.0, letterSpacing: 0.0, fontWeight: FontWeight.bold)),
+                                        Text('Revisions', style: FlutterFlowTheme.of(context).labelSmall.override(font: GoogleFonts.inter(fontWeight: FontWeight.w600), color: Color(0xFFC0392B), fontSize: 10.0, letterSpacing: 0.0, fontWeight: FontWeight.w600)),
+                                      ],
                                     ),
-                                    Padding(
-                                      padding: EdgeInsetsDirectional.fromSTEB(
-                                          0.0, 2.0, 0.0, 0.0),
-                                      child: Text(
-                                        'Revisions',
-                                        style: FlutterFlowTheme.of(context)
-                                            .labelSmall
-                                            .override(
-                                              font: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w600,
-                                                fontStyle:
-                                                    FlutterFlowTheme.of(context)
-                                                        .labelSmall
-                                                        .fontStyle,
-                                              ),
-                                              color: Color(0xFFC0392B),
-                                              fontSize: 10.0,
-                                              letterSpacing: 0.0,
-                                              fontWeight: FontWeight.w600,
-                                              fontStyle:
-                                                  FlutterFlowTheme.of(context)
-                                                      .labelSmall
-                                                      .fontStyle,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ].divide(SizedBox(width: 10.0)),
+                              ].divide(SizedBox(width: 10.0)),
+                            );
+                          },
                         ),
                         Divider(
                           thickness: 1.0,
@@ -1684,6 +1623,47 @@ class _BuilderProjectDetailsWidgetState
                           ),
                         ),
                       ].divide(SizedBox(height: 12.0)),
+                    ),
+                  ),
+                ),
+              ),
+              // Export Materials Button
+              Padding(
+                padding: EdgeInsetsDirectional.fromSTEB(20.0, 0.0, 20.0, 0.0),
+                child: InkWell(
+                  onTap: _exportMaterialsList,
+                  child: Container(
+                    width: double.infinity,
+                    height: 52.0,
+                    decoration: BoxDecoration(
+                      color: Color(0xFFF5F0EB),
+                      borderRadius: BorderRadius.circular(14.0),
+                      border: Border.all(
+                        color: Color(0xFFD4C4B0),
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.download_rounded,
+                          color: Color(0xFFB8956A),
+                          size: 20.0,
+                        ),
+                        SizedBox(width: 8.0),
+                        Text(
+                          'Export Materials List (CSV)',
+                          style: FlutterFlowTheme.of(context).labelMedium.override(
+                                font: GoogleFonts.inter(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                color: Color(0xFFB8956A),
+                                fontSize: 13.0,
+                                letterSpacing: 0.3,
+                              ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
