@@ -71,7 +71,7 @@ class TemplatesRecordDocumentEquality implements Equality<TemplatesRecord> {
 
   @override
   bool equals(TemplatesRecord? e1, TemplatesRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

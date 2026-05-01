@@ -70,7 +70,7 @@ class ItemsRecordDocumentEquality implements Equality<ItemsRecord> {
 
   @override
   bool equals(ItemsRecord? e1, ItemsRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

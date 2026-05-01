@@ -64,7 +64,7 @@ class BuilderOrgsRecordDocumentEquality implements Equality<BuilderOrgsRecord> {
 
   @override
   bool equals(BuilderOrgsRecord? e1, BuilderOrgsRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

@@ -72,7 +72,7 @@ class NotificationsRecordDocumentEquality
 
   @override
   bool equals(NotificationsRecord? e1, NotificationsRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

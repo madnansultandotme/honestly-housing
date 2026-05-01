@@ -17,19 +17,22 @@ export 'firebase_auth_manager.dart';
 final _authManager = FirebaseAuthManager();
 FirebaseAuthManager get authManager => _authManager;
 
+// Current user document from Firestore
+DocumentSnapshot? currentUserDocument;
+
 String get currentUserEmail =>
-    currentUserDocument?.email ?? currentUser?.email ?? '';
+    currentUserDocument?.get('email') ?? currentUser?.email ?? '';
 
 String get currentUserUid => currentUser?.uid ?? '';
 
 String get currentUserDisplayName =>
-    currentUserDocument?.displayName ?? currentUser?.displayName ?? '';
+    currentUserDocument?.get('displayName') ?? currentUser?.displayName ?? '';
 
 String get currentUserPhoto =>
-    currentUserDocument?.photoUrl ?? currentUser?.photoUrl ?? '';
+    currentUserDocument?.get('photoUrl') ?? currentUser?.photoUrl ?? '';
 
 String get currentPhoneNumber =>
-    currentUserDocument?.phoneNumber ?? currentUser?.phoneNumber ?? '';
+    currentUserDocument?.get('phone') ?? currentUser?.phoneNumber ?? '';
 
 String get currentJwtToken => _currentJwtToken ?? '';
 
@@ -41,4 +44,25 @@ String? _currentJwtToken;
 final jwtTokenStream = FirebaseAuth.instance
     .idTokenChanges()
     .map((user) async => _currentJwtToken = await user?.getIdToken())
+    .asBroadcastStream();
+
+/// Stream that combines auth state changes with user document updates
+final authenticatedUserStream = FirebaseAuth.instance
+    .authStateChanges()
+    .asyncMap((user) async {
+      if (user != null) {
+        try {
+          currentUserDocument = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+        } catch (e) {
+          print('Error fetching user document: $e');
+          currentUserDocument = null;
+        }
+      } else {
+        currentUserDocument = null;
+      }
+      return user;
+    })
     .asBroadcastStream();

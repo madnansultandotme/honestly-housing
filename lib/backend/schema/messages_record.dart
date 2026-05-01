@@ -71,7 +71,7 @@ class MessagesRecordDocumentEquality implements Equality<MessagesRecord> {
 
   @override
   bool equals(MessagesRecord? e1, MessagesRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

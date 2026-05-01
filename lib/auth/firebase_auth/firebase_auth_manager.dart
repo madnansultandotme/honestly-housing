@@ -12,6 +12,7 @@ import 'firebase_user_provider.dart';
 import 'google_auth.dart';
 import 'jwt_token_auth.dart';
 import 'github_auth.dart';
+import '../../backend/firebase/user_document_helper.dart';
 
 export '../base_auth_user_provider.dart';
 

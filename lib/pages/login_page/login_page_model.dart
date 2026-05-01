@@ -19,6 +19,30 @@ class LoginPageModel extends FlutterFlowModel<LoginPageWidget> {
   @override
   void initState(BuildContext context) {
     passwordVisibility = false;
+    
+    // Set up validators
+    textController1Validator = _textController1Validator;
+    textController2Validator = _textController2Validator;
+  }
+
+  String? _textController1Validator(BuildContext context, String? val) {
+    if (val == null || val.isEmpty) {
+      return 'Email is required';
+    }
+    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(val)) {
+      return 'Please enter a valid email';
+    }
+    return null;
+  }
+
+  String? _textController2Validator(BuildContext context, String? val) {
+    if (val == null || val.isEmpty) {
+      return 'Password is required';
+    }
+    if (val.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+    return null;
   }
 
   @override

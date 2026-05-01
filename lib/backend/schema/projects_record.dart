@@ -64,7 +64,7 @@ class ProjectsRecordDocumentEquality implements Equality<ProjectsRecord> {
 
   @override
   bool equals(ProjectsRecord? e1, ProjectsRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

@@ -1,8 +1,11 @@
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:percent_indicator/percent_indicator.dart';
 import 'client_selections_home_model.dart';
 export 'client_selections_home_model.dart';
 
@@ -18,10 +21,15 @@ export 'client_selections_home_model.dart';
 /// brass accent (#B8956A) progress fill, warm neutral gray (#8B8680)
 /// secondary text. Apply rounded corners and premium spacing.
 class ClientSelectionsHomeWidget extends StatefulWidget {
-  const ClientSelectionsHomeWidget({super.key});
+  const ClientSelectionsHomeWidget({
+    super.key,
+    this.projectId,
+  });
 
   static String routeName = 'ClientSelectionsHome';
   static String routePath = '/clientSelectionsHome';
+
+  final String? projectId;
 
   @override
   State<ClientSelectionsHomeWidget> createState() =>
@@ -33,13 +41,46 @@ class _ClientSelectionsHomeWidgetState
   late ClientSelectionsHomeModel _model;
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
+  
+  String? _projectId;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => ClientSelectionsHomeModel());
-
+    _loadProjectId();
     WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
+  }
+
+  Future<void> _loadProjectId() async {
+    try {
+      if (widget.projectId != null && widget.projectId!.isNotEmpty) {
+        setState(() {
+          _projectId = widget.projectId;
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserUid)
+          .get();
+      
+      if (userDoc.exists) {
+        final projectIds = (userDoc.data()?['projectIds'] as List?)?.cast<String>() ?? [];
+        setState(() {
+          _projectId = projectIds.isNotEmpty ? projectIds.first : null;
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (e) {
+      print('Error loading project: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   @override

@@ -71,7 +71,7 @@ class OptionsRecordDocumentEquality implements Equality<OptionsRecord> {
 
   @override
   bool equals(OptionsRecord? e1, OptionsRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

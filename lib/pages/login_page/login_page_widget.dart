@@ -1,6 +1,8 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/flutter_flow/flutter_flow_widgets.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'login_page_model.dart';
@@ -653,8 +655,78 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                 padding: EdgeInsetsDirectional.fromSTEB(
                                     0.0, 20.0, 0.0, 0.0),
                                 child: FFButtonWidget(
-                                  onPressed: () {
-                                    print('Button pressed ...');
+                                  onPressed: () async {
+                                    // Validate form
+                                    if (_model.formKey.currentState == null ||
+                                        !_model.formKey.currentState!.validate()) {
+                                      return;
+                                    }
+
+                                    // Show loading dialog
+                                    showDialog(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (context) => Center(
+                                        child: CircularProgressIndicator(
+                                          color: Color(0xFFB8956A),
+                                        ),
+                                      ),
+                                    );
+
+                                    try {
+                                      // Sign in with Firebase
+                                      final user = await authManager.signInWithEmail(
+                                        context,
+                                        _model.textController1.text.trim(),
+                                        _model.textController2.text,
+                                      );
+
+                                      Navigator.pop(context); // Close loading
+
+                                      if (user == null) {
+                                        return; // Error already shown by auth manager
+                                      }
+
+                                      // Get user document to check role
+                                      final userDoc = await FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(user.uid)
+                                          .get();
+
+                                      if (!userDoc.exists) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('User profile not found. Please contact support.'),
+                                            backgroundColor: Color(0xFFD4433A),
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      final role = userDoc.data()?['role'] as String?;
+
+                                      // Role-based routing
+                                      if (role == 'builder') {
+                                        context.goNamed('BuilderDashboard');
+                                      } else if (role == 'client') {
+                                        context.goNamed('ClientDashboard');
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Invalid user role. Please contact support.'),
+                                            backgroundColor: Color(0xFFD4433A),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      Navigator.pop(context); // Close loading if still open
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Login failed: ${e.toString()}'),
+                                          backgroundColor: Color(0xFFD4433A),
+                                        ),
+                                      );
+                                    }
                                   },
                                   text: 'Sign In',
                                   options: FFButtonOptions(
@@ -728,29 +800,62 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                                     .fontStyle,
                                           ),
                                     ),
-                                    Text(
-                                      'Reset it here',
-                                      style: FlutterFlowTheme.of(context)
-                                          .labelMedium
-                                          .override(
-                                            font: GoogleFonts.inter(
+                                    InkWell(
+                                      onTap: () async {
+                                        if (_model.textController1.text.isEmpty) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Please enter your email address'),
+                                              backgroundColor: Color(0xFFD4433A),
+                                            ),
+                                          );
+                                          return;
+                                        }
+                                        
+                                        try {
+                                          await authManager.resetPassword(
+                                            email: _model.textController1.text.trim(),
+                                            context: context,
+                                          );
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Password reset email sent! Check your inbox.'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Error: ${e.toString()}'),
+                                              backgroundColor: Color(0xFFD4433A),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      child: Text(
+                                        'Reset it here',
+                                        style: FlutterFlowTheme.of(context)
+                                            .labelMedium
+                                            .override(
+                                              font: GoogleFonts.inter(
+                                                fontWeight: FontWeight.w600,
+                                                fontStyle:
+                                                    FlutterFlowTheme.of(context)
+                                                        .labelMedium
+                                                        .fontStyle,
+                                              ),
+                                              color: Color(0xFFB8956A),
+                                              fontSize: 13.0,
+                                              letterSpacing: 0.0,
                                               fontWeight: FontWeight.w600,
                                               fontStyle:
                                                   FlutterFlowTheme.of(context)
                                                       .labelMedium
                                                       .fontStyle,
+                                              decoration:
+                                                  TextDecoration.underline,
                                             ),
-                                            color: Color(0xFFB8956A),
-                                            fontSize: 13.0,
-                                            letterSpacing: 0.0,
-                                            fontWeight: FontWeight.w600,
-                                            fontStyle:
-                                                FlutterFlowTheme.of(context)
-                                                    .labelMedium
-                                                    .fontStyle,
-                                            decoration:
-                                                TextDecoration.underline,
-                                          ),
+                                      ),
                                     ),
                                   ],
                                 ),

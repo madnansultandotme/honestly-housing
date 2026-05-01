@@ -72,7 +72,7 @@ class ChangeRequestsRecordDocumentEquality
 
   @override
   bool equals(ChangeRequestsRecord? e1, ChangeRequestsRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

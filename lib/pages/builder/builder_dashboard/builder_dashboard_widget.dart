@@ -1,5 +1,7 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'builder_dashboard_model.dart';
@@ -38,12 +40,106 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // Dashboard data
+  String? _builderOrgId;
+  int _awaitingApprovals = 0;
+  int _dueThisWeek = 0;
+  int _activeProjects = 0;
+  bool _isLoading = true;
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => BuilderDashboardModel());
-
+    _loadDashboardData();
     WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      // Get current user's builder org
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserUid)
+          .get();
+
+      if (!userDoc.exists) {
+        setState(() {
+          _errorMessage = 'User profile not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      _builderOrgId = userDoc.data()?['builderOrgId'] as String?;
+
+      if (_builderOrgId == null || _builderOrgId!.isEmpty) {
+        setState(() {
+          _errorMessage = 'No organization assigned to your account';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get active projects for this builder org
+      final projectsQuery = await FirebaseFirestore.instance
+          .collection('projects')
+          .where('builderOrgId', isEqualTo: _builderOrgId)
+          .where('status', isEqualTo: 'active')
+          .get();
+
+      _activeProjects = projectsQuery.docs.length;
+
+      // Get items awaiting approval and due this week
+      int awaitingCount = 0;
+      int dueCount = 0;
+
+      final now = DateTime.now();
+      final endOfWeek = now.add(Duration(days: 7 - now.weekday));
+
+      for (var projectDoc in projectsQuery.docs) {
+        // Query items for each project
+        final itemsQuery = await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(projectDoc.id)
+            .collection('items')
+            .get();
+
+        for (var itemDoc in itemsQuery.docs) {
+          final itemData = itemDoc.data();
+          final status = itemData['status'] as String?;
+          final dueDate = (itemData['dueDate'] as Timestamp?)?.toDate();
+
+          if (status == 'awaitingClientApproval') {
+            awaitingCount++;
+          }
+
+          if (dueDate != null &&
+              dueDate.isBefore(endOfWeek) &&
+              dueDate.isAfter(now)) {
+            dueCount++;
+          }
+        }
+      }
+
+      setState(() {
+        _awaitingApprovals = awaitingCount;
+        _dueThisWeek = dueCount;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading dashboard data: $e');
+      setState(() {
+        _errorMessage = 'Failed to load dashboard data: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -149,6 +245,47 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                     ),
                   ),
                 ),
+                // Error message display
+                if (_errorMessage != null)
+                  Padding(
+                    padding: EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 16.0),
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFF9EDEC),
+                        borderRadius: BorderRadius.circular(12.0),
+                        border: Border.all(
+                          color: Color(0xFFE8B4B0),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              color: Color(0xFFD4433A),
+                              size: 20.0,
+                            ),
+                            SizedBox(width: 12.0),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: FlutterFlowTheme.of(context)
+                                    .bodySmall
+                                    .override(
+                                      font: GoogleFonts.inter(),
+                                      color: Color(0xFFD4433A),
+                                      fontSize: 13.0,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 Padding(
                   padding: EdgeInsetsDirectional.fromSTEB(24.0, 0.0, 24.0, 0.0),
                   child: Container(
@@ -229,7 +366,7 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                                           ),
                                         ),
                                         Text(
-                                          '7',
+                                          _isLoading ? '--' : '$_awaitingApprovals',
                                           style: FlutterFlowTheme.of(context)
                                               .displaySmall
                                               .override(
@@ -330,7 +467,7 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                                           ),
                                         ),
                                         Text(
-                                          '4',
+                                          _isLoading ? '--' : '$_dueThisWeek',
                                           style: FlutterFlowTheme.of(context)
                                               .displaySmall
                                               .override(
@@ -432,7 +569,7 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                                           ),
                                         ),
                                         Text(
-                                          '12',
+                                          _isLoading ? '--' : '$_activeProjects',
                                           style: FlutterFlowTheme.of(context)
                                               .displaySmall
                                               .override(
@@ -524,22 +661,26 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                             Expanded(
                               child: Padding(
                                 padding: EdgeInsets.all(20.0),
-                                child: Container(
-                                  width: 100.0,
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFFB8956A),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        blurRadius: 16.0,
-                                        color: Color(0x33B8956A),
-                                        offset: Offset(
-                                          0.0,
-                                          6.0,
-                                        ),
-                                      )
-                                    ],
-                                    borderRadius: BorderRadius.circular(16.0),
-                                  ),
+                                child: InkWell(
+                                  onTap: () {
+                                    context.pushNamed('BuilderProjects');
+                                  },
+                                  child: Container(
+                                    width: 100.0,
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFFB8956A),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          blurRadius: 16.0,
+                                          color: Color(0x33B8956A),
+                                          offset: Offset(
+                                            0.0,
+                                            6.0,
+                                          ),
+                                        )
+                                      ],
+                                      borderRadius: BorderRadius.circular(16.0),
+                                    ),
                                   child: Padding(
                                     padding: EdgeInsets.all(16.0),
                                     child: Column(
@@ -619,10 +760,14 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                             Expanded(
                               child: Padding(
                                 padding: EdgeInsets.all(20.0),
-                                child: Container(
-                                  width: 100.0,
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFF2C2416),
+                                child: InkWell(
+                                  onTap: () {
+                                    context.pushNamed('Messages');
+                                  },
+                                  child: Container(
+                                    width: 100.0,
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFF2C2416),
                                     boxShadow: [
                                       BoxShadow(
                                         blurRadius: 16.0,

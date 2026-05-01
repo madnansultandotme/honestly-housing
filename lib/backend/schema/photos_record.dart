@@ -70,7 +70,7 @@ class PhotosRecordDocumentEquality implements Equality<PhotosRecord> {
 
   @override
   bool equals(PhotosRecord? e1, PhotosRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

@@ -1,7 +1,10 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:percent_indicator/percent_indicator.dart';
 import 'client_project_detai_model.dart';
 export 'client_project_detai_model.dart';
 
@@ -18,10 +21,15 @@ export 'client_project_detai_model.dart';
 /// info cards, warm neutral gray (#8B8680) for secondary text. Apply
 /// professional spacing with clear call-to-action hierarchy.
 class ClientProjectDetaiWidget extends StatefulWidget {
-  const ClientProjectDetaiWidget({super.key});
+  const ClientProjectDetaiWidget({
+    super.key,
+    this.projectId,
+  });
 
   static String routeName = 'ClientProjectDetai';
   static String routePath = '/clientProjectDetai';
+
+  final String? projectId;
 
   @override
   State<ClientProjectDetaiWidget> createState() =>
@@ -50,7 +58,50 @@ class _ClientProjectDetaiWidgetState extends State<ClientProjectDetaiWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final projectId = widget.projectId ?? '';
+    
+    if (projectId.isEmpty) {
+      return Scaffold(
+        body: Center(child: Text('No project ID provided')),
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFFB8956A)),
+            ),
+          );
+        }
+
+        if (!snapshot.data!.exists) {
+          return Scaffold(
+            body: Center(child: Text('Project not found')),
+          );
+        }
+
+        final projectData = snapshot.data!.data() as Map<String, dynamic>;
+        final projectName = projectData['name'] as String? ?? 'Untitled Project';
+        final builderOrgId = projectData['builderOrgId'] as String? ?? '';
+        final progress = projectData['progress'] as Map<String, dynamic>?;
+        final totalItems = progress?['totalItems'] as int? ?? 0;
+        final completedItems = progress?['completedItems'] as int? ?? 0;
+        final pendingItems = progress?['pendingItems'] as int? ?? 0;
+        final completionPercent = totalItems > 0 ? (completedItems / totalItems) : 0.0;
+
+        return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
         FocusManager.instance.primaryFocus?.unfocus();
@@ -92,7 +143,7 @@ class _ClientProjectDetaiWidgetState extends State<ClientProjectDetaiWidget> {
                             ),
                       ),
                       Text(
-                        'Riverside Renovation',
+                        projectName,
                         style: FlutterFlowTheme.of(context).titleLarge.override(
                               font: GoogleFonts.interTight(
                                 fontWeight: FontWeight.bold,
@@ -1710,6 +1761,8 @@ class _ClientProjectDetaiWidgetState extends State<ClientProjectDetaiWidget> {
           ),
         ),
       ),
+    );
+      },
     );
   }
 }

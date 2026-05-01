@@ -1,5 +1,7 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/percent_indicator.dart';
@@ -33,12 +35,139 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
 
+  // Dashboard data
+  String _userName = '';
+  String _projectName = '';
+  String _projectStatus = '';
+  DateTime? _startDate;
+  DateTime? _targetDate;
+  String _phase = '';
+  double _completionPercent = 0.0;
+  int _pendingDecisions = 0;
+  int _dueThisWeek = 0;
+  bool _isLoading = true;
+  String? _errorMessage;
+
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => ClientDashboardModel());
-
+    _loadDashboardData();
     WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      // Get current user's document
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserUid)
+          .get();
+
+      if (!userDoc.exists) {
+        setState(() {
+          _errorMessage = 'User profile not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final userData = userDoc.data() as Map<String, dynamic>?;
+      _userName = userData?['displayName'] as String? ?? 'Client';
+      final projectIds = (userData?['projectIds'] as List?)?.cast<String>() ?? [];
+
+      if (projectIds.isEmpty) {
+        setState(() {
+          _errorMessage = 'No projects assigned to your account';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Get first project (in real app, user would select)
+      final projectId = projectIds.first;
+      final projectDoc = await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .get();
+
+      if (!projectDoc.exists) {
+        setState(() {
+          _errorMessage = 'Project not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final projectData = projectDoc.data() as Map<String, dynamic>?;
+      _projectName = projectData?['name'] as String? ?? 'Untitled Project';
+      _projectStatus = projectData?['status'] as String? ?? 'unknown';
+      _startDate = (projectData?['startDate'] as Timestamp?)?.toDate();
+      _targetDate = (projectData?['targetCompletionDate'] as Timestamp?)?.toDate();
+      
+      // Calculate phase based on progress
+      final progress = projectData?['progress'] as Map<String, dynamic>?;
+      final totalItems = progress?['totalItems'] as int? ?? 0;
+      final completedItems = progress?['completedItems'] as int? ?? 0;
+      
+      if (totalItems > 0) {
+        _completionPercent = completedItems / totalItems;
+      }
+      
+      // Determine phase
+      if (_completionPercent < 0.3) {
+        _phase = 'Planning';
+      } else if (_completionPercent < 0.7) {
+        _phase = 'Selections';
+      } else {
+        _phase = 'Finishing';
+      }
+
+      // Query items for pending decisions and due this week
+      final itemsQuery = await FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .collection('items')
+          .get();
+
+      int pendingCount = 0;
+      int dueCount = 0;
+      final now = DateTime.now();
+      final endOfWeek = now.add(Duration(days: 7 - now.weekday));
+
+      for (var itemDoc in itemsQuery.docs) {
+        final itemData = itemDoc.data();
+        final status = itemData['status'] as String?;
+        final dueDate = (itemData['dueDate'] as Timestamp?)?.toDate();
+
+        if (status == 'awaitingClientApproval' || status == 'needsClientInput') {
+          pendingCount++;
+        }
+
+        if (dueDate != null &&
+            dueDate.isBefore(endOfWeek) &&
+            dueDate.isAfter(now)) {
+          dueCount++;
+        }
+      }
+
+      setState(() {
+        _pendingDecisions = pendingCount;
+        _dueThisWeek = dueCount;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading dashboard data: $e');
+      setState(() {
+        _errorMessage = 'Failed to load dashboard data: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -90,7 +219,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                           ),
                     ),
                     Text(
-                      'Sarah Johnson',
+                      _isLoading ? 'Loading...' : _userName,
                       style:
                           FlutterFlowTheme.of(context).headlineMedium.override(
                                 font: GoogleFonts.interTight(
@@ -180,7 +309,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Riverside Renovation',
+                                      _isLoading ? 'Loading...' : _projectName,
                                       style: FlutterFlowTheme.of(context)
                                           .titleMedium
                                           .override(
@@ -305,7 +434,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                           ),
                                     ),
                                     Text(
-                                      '68%',
+                                      _isLoading ? '--' : '${(_completionPercent * 100).toStringAsFixed(0)}%',
                                       style: FlutterFlowTheme.of(context)
                                           .bodySmall
                                           .override(
@@ -329,7 +458,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                   ],
                                 ),
                                 LinearPercentIndicator(
-                                  percent: 0.68,
+                                  percent: _isLoading ? 0.0 : _completionPercent,
                                   width: MediaQuery.sizeOf(context).width * 1.0,
                                   lineHeight: 10.0,
                                   animation: true,
@@ -377,7 +506,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                           ),
                                     ),
                                     Text(
-                                      'Mar 1, 2024',
+                                      _isLoading ? '--' : (_startDate != null ? '${_startDate!.month}/${_startDate!.day}/${_startDate!.year}' : 'Not set'),
                                       style: FlutterFlowTheme.of(context)
                                           .bodySmall
                                           .override(
@@ -433,7 +562,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                           ),
                                     ),
                                     Text(
-                                      'Selections',
+                                      _isLoading ? '--' : _phase,
                                       style: FlutterFlowTheme.of(context)
                                           .bodySmall
                                           .override(
@@ -489,7 +618,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                           ),
                                     ),
                                     Text(
-                                      'Aug 15, 2024',
+                                      _isLoading ? '--' : (_targetDate != null ? '${_targetDate!.month}/${_targetDate!.day}/${_targetDate!.year}' : 'Not set'),
                                       style: FlutterFlowTheme.of(context)
                                           .bodySmall
                                           .override(
@@ -620,7 +749,7 @@ class _ClientDashboardWidgetState extends State<ClientDashboardWidget> {
                                   child: Padding(
                                     padding: EdgeInsets.all(8.0),
                                     child: Text(
-                                      '3 Due',
+                                      _isLoading ? '--' : '$_pendingDecisions Due',
                                       style: FlutterFlowTheme.of(context)
                                           .bodySmall
                                           .override(

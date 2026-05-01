@@ -71,7 +71,7 @@ class CategoriesRecordDocumentEquality implements Equality<CategoriesRecord> {
 
   @override
   bool equals(CategoriesRecord? e1, CategoriesRecord? e2) {
-    return;
+    return e1?.reference == e2?.reference;
   }
 
   @override

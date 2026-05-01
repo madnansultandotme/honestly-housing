@@ -1,5 +1,7 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'builder_project_details_model.dart';
@@ -19,10 +21,15 @@ export 'builder_project_details_model.dart';
 /// and progress, soft taupe (#D4C4B0) status chips, warm neutral gray
 /// (#8B8680) for dates. Apply professional spacing.
 class BuilderProjectDetailsWidget extends StatefulWidget {
-  const BuilderProjectDetailsWidget({super.key});
+  const BuilderProjectDetailsWidget({
+    super.key,
+    this.projectId,
+  });
 
   static String routeName = 'BuilderProjectDetails';
   static String routePath = '/builderProjectDetails';
+
+  final String? projectId;
 
   @override
   State<BuilderProjectDetailsWidget> createState() =>
@@ -52,7 +59,57 @@ class _BuilderProjectDetailsWidgetState
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    final projectId = widget.projectId ?? '';
+    
+    if (projectId.isEmpty) {
+      return Scaffold(
+        body: Center(
+          child: Text('No project ID provided'),
+        ),
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('projects')
+          .doc(projectId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text('Error: ${snapshot.error}'),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFB8956A),
+              ),
+            ),
+          );
+        }
+
+        if (!snapshot.data!.exists) {
+          return Scaffold(
+            body: Center(
+              child: Text('Project not found'),
+            ),
+          );
+        }
+
+        final projectData = snapshot.data!.data() as Map<String, dynamic>;
+        final projectName = projectData['name'] as String? ?? 'Untitled Project';
+        final status = projectData['status'] as String? ?? 'unknown';
+        final clientId = projectData['clientId'] as String? ?? '';
+        final address = projectData['address'] as String? ?? '';
+        final startDate = (projectData['startDate'] as Timestamp?)?.toDate();
+        final targetDate = (projectData['targetCompletionDate'] as Timestamp?)?.toDate();
+
+        return GestureDetector(
       onTap: () {
         FocusScope.of(context).unfocus();
         FocusManager.instance.primaryFocus?.unfocus();
@@ -74,7 +131,7 @@ class _BuilderProjectDetailsWidgetState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Riverside Modern',
+                      projectName,
                       style:
                           FlutterFlowTheme.of(context).headlineMedium.override(
                                 font: GoogleFonts.interTight(
@@ -1584,6 +1641,8 @@ class _BuilderProjectDetailsWidgetState
           ),
         ),
       ),
+    );
+      },
     );
   }
 }
