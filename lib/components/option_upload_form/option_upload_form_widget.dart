@@ -8,6 +8,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'option_upload_form_model.dart';
 export 'option_upload_form_model.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+
 /// # Option Upload Form
 ///
 /// Build a form to add a curated option with title, linkUrl, image, price,
@@ -24,6 +29,20 @@ class OptionUploadFormWidget extends StatefulWidget {
 
 class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
   late OptionUploadFormModel _model;
+  bool _isSaving = false;
+  bool _isUploading = false;
+  String? _uploadedImageUrl;
+  String? _uploadedStoragePath;
+
+  final List<String> _categoryOptions = [
+    'Flooring',
+    'Lighting',
+    'Plumbing',
+    'Paint',
+    'Tile',
+    'Countertops',
+    'Hardware',
+  ];
 
   @override
   void setState(VoidCallback callback) {
@@ -53,6 +72,160 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
     _model.maybeDispose();
 
     super.dispose();
+  }
+
+  double _parseAmount(String raw) {
+    final cleaned = raw.replaceAll(RegExp('[^0-9.]'), '');
+    return double.tryParse(cleaned) ?? 0.0;
+  }
+
+  Future<String?> _loadBuilderOrgId() async {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserUid)
+        .get();
+    return userDoc.data()?['builderOrgId'] as String?;
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    if (_isUploading) return;
+
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      final builderOrgId = await _loadBuilderOrgId();
+      if (builderOrgId == null || builderOrgId.isEmpty) {
+        throw Exception('Builder organization not found.');
+      }
+
+      final bytes = await pickedFile.readAsBytes();
+      final fileName = pickedFile.name.isNotEmpty
+          ? pickedFile.name
+          : 'option_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final storagePath =
+          'builderOrgs/$builderOrgId/options/${DateTime.now().millisecondsSinceEpoch}_$fileName';
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+      await storageRef.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      setState(() {
+        _uploadedImageUrl = downloadUrl;
+        _uploadedStoragePath = storagePath;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Image upload failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
+    }
+  }
+
+  Future<void> _saveOption() async {
+    if (_isSaving) return;
+
+    final title = _model.textController1.text.trim();
+    final linkUrl = _model.textController2.text.trim();
+    final priceValue = _parseAmount(_model.textController3.text);
+    final category = _model.choiceChipsValue;
+
+    if (title.isEmpty || linkUrl.isEmpty || category == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please fill in title, link, and category.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_uploadedImageUrl == null || _uploadedImageUrl!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please upload an image.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final builderOrgId = await _loadBuilderOrgId();
+      if (builderOrgId == null || builderOrgId.isEmpty) {
+        throw Exception('Builder organization not found.');
+      }
+
+      await FirebaseFirestore.instance
+          .collection('builderOrgs')
+          .doc(builderOrgId)
+          .collection('options')
+          .add({
+        'name': title,
+        'linkUrl': linkUrl,
+        'imageUrl': _uploadedImageUrl,
+        'storagePath': _uploadedStoragePath,
+        'price': priceValue,
+        'categoryName': category,
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': currentUserUid,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Option saved successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      _clearForm();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving option: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+
+  void _clearForm() {
+    _model.textController1.clear();
+    _model.textController2.clear();
+    _model.textController3.clear();
+    _model.choiceChipsValueController?.value = [];
+    setState(() {
+      _model.choiceChipsValue = null;
+      _uploadedImageUrl = null;
+      _uploadedStoragePath = null;
+    });
   }
 
   @override
@@ -322,33 +495,42 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                       width: 1.0,
                     ),
                   ),
-                  child: Padding(
-                    padding:
-                        EdgeInsetsDirectional.fromSTEB(16.0, 16.0, 16.0, 16.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.cloud_upload_rounded,
-                          color: FlutterFlowTheme.of(context).primary,
-                          size: 48.0,
-                        ),
-                        Text(
-                          'Tap to upload image',
-                          style:
-                              FlutterFlowTheme.of(context).bodyMedium.override(
-                                    font: GoogleFonts.inter(
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .bodyMedium
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .bodyMedium
-                                          .fontStyle,
-                                    ),
-                                    color: FlutterFlowTheme.of(context).primary,
-                                    letterSpacing: 0.0,
+                  child: InkWell(
+                    onTap: _pickAndUploadImage,
+                    child: Padding(
+                      padding: EdgeInsetsDirectional.fromSTEB(
+                          16.0, 16.0, 16.0, 16.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          if (_uploadedImageUrl == null)
+                            Icon(
+                              Icons.cloud_upload_rounded,
+                              color: FlutterFlowTheme.of(context).primary,
+                              size: 48.0,
+                            )
+                          else
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12.0),
+                              child: Image.network(
+                                _uploadedImageUrl!,
+                                width: double.infinity,
+                                height: 120.0,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          Text(
+                            _isUploading
+                                ? 'Uploading image...'
+                                : _uploadedImageUrl == null
+                                    ? 'Tap to upload image'
+                                    : 'Tap to replace image',
+                            style: FlutterFlowTheme.of(context)
+                                .bodyMedium
+                                .override(
+                                  font: GoogleFonts.inter(
                                     fontWeight: FlutterFlowTheme.of(context)
                                         .bodyMedium
                                         .fontWeight,
@@ -356,20 +538,22 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                                         .bodyMedium
                                         .fontStyle,
                                   ),
-                        ),
-                        Text(
-                          'Supports JPG, PNG, WEBP',
-                          style:
-                              FlutterFlowTheme.of(context).labelSmall.override(
-                                    font: GoogleFonts.inter(
-                                      fontWeight: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontWeight,
-                                      fontStyle: FlutterFlowTheme.of(context)
-                                          .labelSmall
-                                          .fontStyle,
-                                    ),
-                                    letterSpacing: 0.0,
+                                  color: FlutterFlowTheme.of(context).primary,
+                                  letterSpacing: 0.0,
+                                  fontWeight: FlutterFlowTheme.of(context)
+                                      .bodyMedium
+                                      .fontWeight,
+                                  fontStyle: FlutterFlowTheme.of(context)
+                                      .bodyMedium
+                                      .fontStyle,
+                                ),
+                          ),
+                          Text(
+                            'Supports JPG, PNG, WEBP',
+                            style: FlutterFlowTheme.of(context)
+                                .labelSmall
+                                .override(
+                                  font: GoogleFonts.inter(
                                     fontWeight: FlutterFlowTheme.of(context)
                                         .labelSmall
                                         .fontWeight,
@@ -377,8 +561,17 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                                         .labelSmall
                                         .fontStyle,
                                   ),
-                        ),
-                      ].divide(SizedBox(height: 10.0)),
+                                  letterSpacing: 0.0,
+                                  fontWeight: FlutterFlowTheme.of(context)
+                                      .labelSmall
+                                      .fontWeight,
+                                  fontStyle: FlutterFlowTheme.of(context)
+                                      .labelSmall
+                                      .fontStyle,
+                                ),
+                          ),
+                        ].divide(SizedBox(height: 10.0)),
+                      ),
                     ),
                   ),
                 ),
@@ -502,14 +695,8 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                       ),
                 ),
                 FlutterFlowChoiceChips(
-                  options: [
-                    ChipData('Home Decor'),
-                    ChipData('Tech'),
-                    ChipData('Fashion'),
-                    ChipData('Kitchen'),
-                    ChipData('Wellness'),
-                    ChipData('Outdoor')
-                  ],
+                  options:
+                      _categoryOptions.map((cat) => ChipData(cat)).toList(),
                   onChanged: (val) => safeSetState(
                       () => _model.choiceChipsValue = val?.firstOrNull),
                   selectedChipStyle: ChipStyle(
@@ -628,11 +815,19 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                                 FlutterFlowTheme.of(context).primaryBackground,
                             borderRadius: BorderRadius.circular(10.0),
                           ),
-                          child: Icon(
-                            Icons.image_rounded,
-                            color: FlutterFlowTheme.of(context).alternate,
-                            size: 36.0,
-                          ),
+                          child: _uploadedImageUrl == null
+                              ? Icon(
+                                  Icons.image_rounded,
+                                  color: FlutterFlowTheme.of(context).alternate,
+                                  size: 36.0,
+                                )
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(10.0),
+                                  child: Image.network(
+                                    _uploadedImageUrl!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
                         ),
                         Expanded(
                           child: Column(
@@ -640,7 +835,9 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Option Title',
+                                _model.textController1.text.isNotEmpty
+                                  ? _model.textController1.text
+                                  : 'Option Title',
                                 style: FlutterFlowTheme.of(context)
                                     .titleSmall
                                     .override(
@@ -664,7 +861,9 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                                     ),
                               ),
                               Text(
-                                '\$0.00',
+                                _model.textController3.text.isNotEmpty
+                                  ? '\$${_model.textController3.text}'
+                                  : '\$0.00',
                                 style: FlutterFlowTheme.of(context)
                                     .bodyLarge
                                     .override(
@@ -696,7 +895,7 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
                                   padding: EdgeInsetsDirectional.fromSTEB(
                                       6.0, 0.0, 6.0, 0.0),
                                   child: Text(
-                                    'Category',
+                                    _model.choiceChipsValue ?? 'Category',
                                     style: FlutterFlowTheme.of(context)
                                         .labelSmall
                                         .override(
@@ -735,10 +934,8 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
               ].divide(SizedBox(height: 8.0)),
             ),
             FFButtonWidget(
-              onPressed: () {
-                print('Button pressed ...');
-              },
-              text: 'Save to Firestore',
+              onPressed: _isSaving ? null : _saveOption,
+              text: _isSaving ? 'Saving...' : 'Save to Firestore',
               icon: Icon(
                 Icons.save_rounded,
                 size: 15.0,
@@ -773,9 +970,7 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
               ),
             ),
             FFButtonWidget(
-              onPressed: () {
-                print('Button pressed ...');
-              },
+              onPressed: _clearForm,
               text: 'Clear Form',
               options: FFButtonOptions(
                 width: double.infinity,

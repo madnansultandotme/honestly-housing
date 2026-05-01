@@ -245,6 +245,59 @@ class _BuilderProjectDetailsWidgetState
             mainAxisSize: MainAxisSize.max,
             children: [
               Padding(
+                padding: EdgeInsetsDirectional.fromSTEB(20.0, 16.0, 20.0, 0.0),
+                child: InkWell(
+                  onTap: () {
+                    context.pushNamed(
+                      'BuilderSelectionItemsList',
+                      queryParameters: {
+                        'projectId': projectId,
+                      },
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Color(0xFFB8956A),
+                      borderRadius: BorderRadius.circular(14.0),
+                      boxShadow: [
+                        BoxShadow(
+                          blurRadius: 12.0,
+                          color: Color(0x1A000000),
+                          offset: Offset(0.0, 4.0),
+                        )
+                      ],
+                    ),
+                    child: Padding(
+                      padding: EdgeInsetsDirectional.fromSTEB(
+                          16.0, 14.0, 16.0, 14.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Manage Selections',
+                            style: FlutterFlowTheme.of(context)
+                                .titleSmall
+                                .override(
+                                  font: GoogleFonts.interTight(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  color: Colors.white,
+                                  letterSpacing: 0.0,
+                                ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: Colors.white,
+                            size: 20.0,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
                 padding: EdgeInsetsDirectional.fromSTEB(20.0, 20.0, 20.0, 20.0),
                 child: Container(
                   width: double.infinity,

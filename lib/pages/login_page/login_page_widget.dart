@@ -706,7 +706,7 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                       final role = userDoc.data()?['role'] as String?;
 
                                       // Role-based routing
-                                      if (role == 'builder') {
+                                      if (role == 'builder' || role == 'designer') {
                                         context.goNamed('BuilderDashboard');
                                       } else if (role == 'client') {
                                         context.goNamed('ClientDashboard');
@@ -834,6 +834,73 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                       },
                                       child: Text(
                                         'Reset it here',
+                                        style: FlutterFlowTheme.of(context)
+                                            .labelMedium
+                                            .override(
+                                              font: GoogleFonts.inter(
+                                                fontWeight: FontWeight.w600,
+                                                fontStyle:
+                                                    FlutterFlowTheme.of(context)
+                                                        .labelMedium
+                                                        .fontStyle,
+                                              ),
+                                              color: Color(0xFFB8956A),
+                                              fontSize: 13.0,
+                                              letterSpacing: 0.0,
+                                              fontWeight: FontWeight.w600,
+                                              fontStyle:
+                                                  FlutterFlowTheme.of(context)
+                                                      .labelMedium
+                                                      .fontStyle,
+                                              decoration:
+                                                  TextDecoration.underline,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsetsDirectional.fromSTEB(
+                                    0.0, 12.0, 0.0, 0.0),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.max,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'New here?  ',
+                                      style: FlutterFlowTheme.of(context)
+                                          .bodySmall
+                                          .override(
+                                            font: GoogleFonts.inter(
+                                              fontWeight:
+                                                  FlutterFlowTheme.of(context)
+                                                      .bodySmall
+                                                      .fontWeight,
+                                              fontStyle:
+                                                  FlutterFlowTheme.of(context)
+                                                      .bodySmall
+                                                      .fontStyle,
+                                            ),
+                                            color: Color(0xFF8B8680),
+                                            fontSize: 13.0,
+                                            letterSpacing: 0.0,
+                                            fontWeight:
+                                                FlutterFlowTheme.of(context)
+                                                    .bodySmall
+                                                    .fontWeight,
+                                            fontStyle:
+                                                FlutterFlowTheme.of(context)
+                                                    .bodySmall
+                                                    .fontStyle,
+                                          ),
+                                    ),
+                                    InkWell(
+                                      onTap: () {
+                                        context.pushNamed('SignupFlow');
+                                      },
+                                      child: Text(
+                                        'Create an account',
                                         style: FlutterFlowTheme.of(context)
                                             .labelMedium
                                             .override(

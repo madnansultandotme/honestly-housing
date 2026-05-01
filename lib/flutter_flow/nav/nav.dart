@@ -153,6 +153,31 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           name: MessagesWidget.routeName,
           path: MessagesWidget.routePath,
           builder: (context, params) => MessagesWidget(),
+        ),
+        FFRoute(
+          name: SignupFlowWidget.routeName,
+          path: SignupFlowWidget.routePath,
+          builder: (context, params) => SignupFlowWidget(),
+        ),
+        FFRoute(
+          name: BuilderSelectionItemsListWidget.routeName,
+          path: BuilderSelectionItemsListWidget.routePath,
+          builder: (context, params) => BuilderSelectionItemsListWidget(
+            projectId:
+                (params.getParam('projectId', ParamType.String) as String?) ??
+                    '',
+          ),
+        ),
+        FFRoute(
+          name: BuilderSelectionItemDetailWidget.routeName,
+          path: BuilderSelectionItemDetailWidget.routePath,
+          builder: (context, params) => BuilderSelectionItemDetailWidget(
+            projectId:
+                (params.getParam('projectId', ParamType.String) as String?) ??
+                    '',
+            itemId:
+                (params.getParam('itemId', ParamType.String) as String?) ?? '',
+          ),
         )
       ].map((r) => r.toRoute(appStateNotifier)).toList(),
     );

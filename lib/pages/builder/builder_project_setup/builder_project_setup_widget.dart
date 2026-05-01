@@ -6,6 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'builder_project_setup_model.dart';
 export 'builder_project_setup_model.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '/auth/firebase_auth/auth_util.dart';
+import '/backend/backend.dart';
+
 /// # Builder Project Setup
 ///
 /// Build configuration page (Builder only).
@@ -33,11 +37,42 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
   late BuilderProjectSetupModel _model;
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isSaving = false;
+  final List<String> _roomOptions = [
+    'Primary Bedroom',
+    'Bedroom 2',
+    'Bedroom 3',
+    'Bedroom 4',
+    'Primary Bathroom',
+    'Bathroom 2',
+    'Bathroom 3',
+    'Half Bath',
+    'Kitchen',
+    'Laundry',
+    'Pantry',
+    'Mudroom',
+    'Living Room',
+    'Dining Room',
+    'Office',
+  ];
+  final List<String> _categoryOptions = [
+    'Flooring',
+    'Lighting',
+    'Plumbing',
+    'Paint',
+    'Tile',
+    'Countertops',
+    'Hardware',
+  ];
+  List<String> _selectedRooms = [];
+  List<String> _selectedCategories = [];
 
   @override
   void initState() {
     super.initState();
     _model = createModel(context, () => BuilderProjectSetupModel());
+
+    _selectedCategories = List<String>.from(_categoryOptions);
 
     _model.textController1 ??= TextEditingController();
     _model.textFieldFocusNode1 ??= FocusNode();
@@ -64,6 +99,114 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
     _model.textFieldFocusNode8 ??= FocusNode();
 
     WidgetsBinding.instance.addPostFrameCallback((_) => safeSetState(() {}));
+  }
+
+  double _parseAmount(String raw) {
+    final cleaned = raw.replaceAll(RegExp('[^0-9.]'), '');
+    return double.tryParse(cleaned) ?? 0.0;
+  }
+
+  int _parseCount(String raw) {
+    final cleaned = raw.replaceAll(RegExp('[^0-9]'), '');
+    return int.tryParse(cleaned) ?? 0;
+  }
+
+  Future<void> _saveProject() async {
+    if (_isSaving) return;
+
+    final projectName = _model.textController1.text.trim();
+    if (projectName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please enter a project name.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUserUid)
+          .get();
+      final userData = userDoc.data() ?? {};
+      final builderOrgId = userData['builderOrgId'] as String?;
+
+      final projectRef = FirebaseFirestore.instance.collection('projects').doc();
+
+      final payload = {
+        'name': projectName,
+        'clientName': _model.textController2.text.trim(),
+        'totalSqFt': _parseAmount(_model.textController3.text),
+        'totalBudget': _parseAmount(_model.textController4.text),
+        'bedrooms': _parseCount(_model.textController5.text),
+        'bathrooms': _parseCount(_model.textController6.text),
+        'offices': _parseCount(_model.textController7.text),
+        'fixtures': _parseCount(_model.textController8.text),
+        'builderOrgId': builderOrgId,
+        'status': 'setup',
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': currentUserUid,
+      };
+
+      final batch = FirebaseFirestore.instance.batch();
+      batch.set(projectRef, payload);
+
+      for (var i = 0; i < _selectedCategories.length; i++) {
+        final categoryName = _selectedCategories[i];
+        final categoryRef = projectRef.collection('categories').doc();
+        batch.set(categoryRef, {
+          'name': categoryName,
+          'required': true,
+          'displayOrder': i,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      for (var i = 0; i < _selectedRooms.length; i++) {
+        final roomName = _selectedRooms[i];
+        final roomRef = projectRef.collection('rooms').doc();
+        batch.set(roomRef, {
+          'name': roomName,
+          'displayOrder': i,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      batch.update(
+        FirebaseFirestore.instance.collection('users').doc(currentUserUid),
+        {
+          'projectIds': FieldValue.arrayUnion([projectRef.id]),
+        },
+      );
+
+      await batch.commit();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Project saved successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      context.pop();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error saving project: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isSaving = false;
+      });
+    }
   }
 
   @override
@@ -129,6 +272,122 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                               ),
                               color: Color(0xFF8B8680),
                               fontSize: 12.0,
+                                      Row(
+                                        mainAxisSize: MainAxisSize.max,
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            mainAxisSize: MainAxisSize.max,
+                                            children: [
+                                              Container(
+                                                width: 4.0,
+                                                height: 20.0,
+                                                decoration: BoxDecoration(
+                                                  color: Color(0xFFB8956A),
+                                                  borderRadius: BorderRadius.circular(4.0),
+                                                ),
+                                              ),
+                                              Text(
+                                                'Selection Categories',
+                                                style: FlutterFlowTheme.of(context)
+                                                    .titleMedium
+                                                    .override(
+                                                      font: GoogleFonts.interTight(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontStyle:
+                                                            FlutterFlowTheme.of(context)
+                                                                .titleMedium
+                                                                .fontStyle,
+                                                      ),
+                                                      color: Color(0xFF2C2825),
+                                                      fontSize: 16.0,
+                                                      letterSpacing: 0.0,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontStyle:
+                                                          FlutterFlowTheme.of(context)
+                                                              .titleMedium
+                                                              .fontStyle,
+                                                    ),
+                                              ),
+                                            ].divide(SizedBox(width: 8.0)),
+                                          ),
+                                          Text(
+                                            'Select all that apply',
+                                            style: FlutterFlowTheme.of(context)
+                                                .labelSmall
+                                                .override(
+                                                  font: GoogleFonts.inter(
+                                                    fontWeight: FlutterFlowTheme.of(context)
+                                                        .labelSmall
+                                                        .fontWeight,
+                                                    fontStyle: FlutterFlowTheme.of(context)
+                                                        .labelSmall
+                                                        .fontStyle,
+                                                  ),
+                                                  color: Color(0xFF8B8680),
+                                                  fontSize: 12.0,
+                                                  letterSpacing: 0.0,
+                                                  fontWeight: FlutterFlowTheme.of(context)
+                                                      .labelSmall
+                                                      .fontWeight,
+                                                  fontStyle: FlutterFlowTheme.of(context)
+                                                      .labelSmall
+                                                      .fontStyle,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      Wrap(
+                                        spacing: 10.0,
+                                        runSpacing: 10.0,
+                                        children: _categoryOptions.map((category) {
+                                          final isSelected = _selectedCategories
+                                              .contains(category);
+                                          return FilterChip(
+                                            label: Text(category),
+                                            selected: isSelected,
+                                            onSelected: (value) {
+                                              setState(() {
+                                                if (value) {
+                                                  _selectedCategories.add(category);
+                                                } else {
+                                                  _selectedCategories.remove(category);
+                                                }
+                                              });
+                                            },
+                                            selectedColor: Color(0xFFF5EDE3),
+                                            checkmarkColor: Color(0xFFB8956A),
+                                            labelStyle: FlutterFlowTheme.of(context)
+                                                .labelMedium
+                                                .override(
+                                                  font: GoogleFonts.inter(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontStyle: FlutterFlowTheme.of(context)
+                                                        .labelMedium
+                                                        .fontStyle,
+                                                  ),
+                                                  color: isSelected
+                                                      ? Color(0xFFB8956A)
+                                                      : Color(0xFF8B8680),
+                                                  fontSize: 12.0,
+                                                  letterSpacing: 0.0,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontStyle: FlutterFlowTheme.of(context)
+                                                      .labelMedium
+                                                      .fontStyle,
+                                                ),
+                                            backgroundColor: Color(0xFFF5F0EB),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(16.0),
+                                              side: BorderSide(
+                                                color: isSelected
+                                                    ? Color(0xFFB8956A)
+                                                    : Color(0xFFD4C4B0),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
                               letterSpacing: 0.0,
                               fontWeight: FontWeight.normal,
                               fontStyle: FlutterFlowTheme.of(context)
@@ -178,9 +437,7 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                         ),
                       ),
                       FFButtonWidget(
-                        onPressed: () {
-                          print('Button pressed ...');
-                        },
+                        onPressed: _saveProject,
                         text: 'Save',
                         options: FFButtonOptions(
                           height: 36.0,
@@ -1558,17 +1815,56 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                           Column(
                             mainAxisSize: MainAxisSize.max,
                             children: [
-                              Padding(
-                                padding: EdgeInsetsDirectional.fromSTEB(
-                                    16.0, 0.0, 16.0, 0.0),
-                                child: Container(
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    color: Color(0xFFD4C4B0),
-                                    borderRadius: BorderRadius.circular(12.0),
-                                  ),
-                                  child: Container(),
-                                ),
+                              Wrap(
+                                spacing: 10.0,
+                                runSpacing: 10.0,
+                                children: _roomOptions.map((room) {
+                                  final isSelected =
+                                      _selectedRooms.contains(room);
+                                  return FilterChip(
+                                    label: Text(room),
+                                    selected: isSelected,
+                                    onSelected: (value) {
+                                      setState(() {
+                                        if (value) {
+                                          _selectedRooms.add(room);
+                                        } else {
+                                          _selectedRooms.remove(room);
+                                        }
+                                      });
+                                    },
+                                    selectedColor: Color(0xFFF5EDE3),
+                                    checkmarkColor: Color(0xFFB8956A),
+                                    labelStyle: FlutterFlowTheme.of(context)
+                                        .labelMedium
+                                        .override(
+                                          font: GoogleFonts.inter(
+                                            fontWeight: FontWeight.w600,
+                                            fontStyle: FlutterFlowTheme.of(context)
+                                                .labelMedium
+                                                .fontStyle,
+                                          ),
+                                          color: isSelected
+                                              ? Color(0xFFB8956A)
+                                              : Color(0xFF8B8680),
+                                          fontSize: 12.0,
+                                          letterSpacing: 0.0,
+                                          fontWeight: FontWeight.w600,
+                                          fontStyle: FlutterFlowTheme.of(context)
+                                              .labelMedium
+                                              .fontStyle,
+                                        ),
+                                    backgroundColor: Color(0xFFF5F0EB),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16.0),
+                                      side: BorderSide(
+                                        color: isSelected
+                                            ? Color(0xFFB8956A)
+                                            : Color(0xFFD4C4B0),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ].divide(SizedBox(height: 10.0)),
                           ),
