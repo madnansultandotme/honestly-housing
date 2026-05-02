@@ -125,10 +125,10 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
   Future<void> _createAccount() async {
     if (_isSubmitting) return;
 
-    final name = _model.nameController.text.trim();
-    final email = _model.emailController.text.trim();
-    final password = _model.passwordController.text;
-    final confirmPassword = _model.confirmPasswordController.text;
+    final name = _model.nameController!.text.trim();
+    final email = _model.emailController!.text.trim();
+    final password = _model.passwordController!.text;
+    final confirmPassword = _model.confirmPasswordController!.text;
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -164,6 +164,8 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
       _isSubmitting = true;
     });
 
+    User? createdUser;
+    
     try {
       final user = await authManager.createAccountWithEmail(
         context,
@@ -178,9 +180,11 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
         return;
       }
 
+      createdUser = user;
+
       String? builderOrgId;
       if (_role == 'builder' || _role == 'designer') {
-        final orgName = _model.orgNameController.text.trim();
+        final orgName = _model.orgNameController!.text.trim();
         if (orgName.isNotEmpty) {
           final orgRef =
               FirebaseFirestore.instance.collection('builderOrgs').doc();
@@ -195,6 +199,7 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
 
       final roleValue = _role == 'homeowner' ? 'client' : _role!;
 
+      // Try to create user document in Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user.uid)
@@ -210,9 +215,13 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
             ),
           );
 
+      // Success! Clear the createdUser reference
+      createdUser = null;
+
       if (_needsOnboarding) {
         setState(() {
           _stepIndex = 2;
+          _isSubmitting = false;
         });
       } else {
         if (roleValue == 'builder' || roleValue == 'designer') {
@@ -222,13 +231,48 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sign up failed: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
+      // If user was created but Firestore write failed, delete the auth user
+      if (createdUser != null) {
+        try {
+          await createdUser.delete();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Account creation failed. Please check your permissions and try again.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        } catch (deleteError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Account created but setup failed. Please contact support.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      } else {
+        // Show user-friendly error message
+        String errorMessage = 'Sign up failed. Please try again.';
+        if (e.toString().contains('email-already-in-use')) {
+          errorMessage = 'This email is already registered. Please use a different email or try logging in.';
+        } else if (e.toString().contains('weak-password')) {
+          errorMessage = 'Password is too weak. Please use a stronger password.';
+        } else if (e.toString().contains('invalid-email')) {
+          errorMessage = 'Invalid email address. Please check and try again.';
+        } else if (e.toString().contains('permission') || e.toString().contains('PERMISSION_DENIED')) {
+          errorMessage = 'Permission error. Please contact support to enable your account.';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      
       setState(() {
         _isSubmitting = false;
       });
@@ -247,11 +291,11 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
           .collection('users')
           .doc(currentUserUid)
           .update({
-        'phone': _model.phoneController.text.trim(),
-        'city': _model.cityController.text.trim(),
-        'budgetRange': _model.budgetController.text.trim(),
-        'timeline': _model.timelineController.text.trim(),
-        'stylePreference': _model.styleController.text.trim(),
+        'phone': _model.phoneController!.text.trim(),
+        'city': _model.cityController!.text.trim(),
+        'budgetRange': _model.budgetController!.text.trim(),
+        'timeline': _model.timelineController!.text.trim(),
+        'stylePreference': _model.styleController!.text.trim(),
         'onboardingComplete': true,
         'updatedAt': FieldValue.serverTimestamp(),
       });
@@ -645,36 +689,36 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
         SizedBox(height: 20.0),
         _buildTextField(
           label: 'Full Name',
-          controller: _model.nameController,
-          focusNode: _model.nameFocusNode,
+          controller: _model.nameController!,
+          focusNode: _model.nameFocusNode!,
           hintText: 'e.g. Morgan Lee',
         ),
         _buildTextField(
           label: 'Email Address',
-          controller: _model.emailController,
-          focusNode: _model.emailFocusNode,
+          controller: _model.emailController!,
+          focusNode: _model.emailFocusNode!,
           keyboardType: TextInputType.emailAddress,
           hintText: 'name@example.com',
         ),
         _buildTextField(
           label: 'Password',
-          controller: _model.passwordController,
-          focusNode: _model.passwordFocusNode,
+          controller: _model.passwordController!,
+          focusNode: _model.passwordFocusNode!,
           obscureText: true,
           hintText: 'Create a password',
         ),
         _buildTextField(
           label: 'Confirm Password',
-          controller: _model.confirmPasswordController,
-          focusNode: _model.confirmPasswordFocusNode,
+          controller: _model.confirmPasswordController!,
+          focusNode: _model.confirmPasswordFocusNode!,
           obscureText: true,
           hintText: 'Re-enter password',
         ),
         if (_role == 'builder' || _role == 'designer')
           _buildTextField(
             label: 'Company Name (optional)',
-            controller: _model.orgNameController,
-            focusNode: _model.orgNameFocusNode,
+            controller: _model.orgNameController!,
+            focusNode: _model.orgNameFocusNode!,
             hintText: 'e.g. Atelier Homes',
           ),
         SizedBox(height: 12.0),
@@ -709,9 +753,23 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
               child: FFButtonWidget(
                 onPressed: _isSubmitting ? null : _createAccount,
                 text: _isSubmitting ? 'Creating...' : 'Create Account',
+                icon: _isSubmitting
+                    ? SizedBox(
+                        width: 20.0,
+                        height: 20.0,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : null,
                 options: FFButtonOptions(
                   height: 48.0,
-                  color: Color(0xFFB8956A),
+                  color: _isSubmitting 
+                      ? Color(0xFFB8956A).withOpacity(0.7)
+                      : Color(0xFFB8956A),
                   textStyle: FlutterFlowTheme.of(context)
                       .labelLarge
                       .override(
@@ -762,33 +820,33 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
         SizedBox(height: 20.0),
         _buildTextField(
           label: 'Phone Number',
-          controller: _model.phoneController,
-          focusNode: _model.phoneFocusNode,
+          controller: _model.phoneController!,
+          focusNode: _model.phoneFocusNode!,
           keyboardType: TextInputType.phone,
           hintText: '(555) 555-5555',
         ),
         _buildTextField(
           label: 'City / State',
-          controller: _model.cityController,
-          focusNode: _model.cityFocusNode,
+          controller: _model.cityController!,
+          focusNode: _model.cityFocusNode!,
           hintText: 'Austin, TX',
         ),
         _buildTextField(
           label: 'Target Budget Range',
-          controller: _model.budgetController,
-          focusNode: _model.budgetFocusNode,
+          controller: _model.budgetController!,
+          focusNode: _model.budgetFocusNode!,
           hintText: 'e.g. 350k - 500k',
         ),
         _buildTextField(
           label: 'Project Timeline',
-          controller: _model.timelineController,
-          focusNode: _model.timelineFocusNode,
+          controller: _model.timelineController!,
+          focusNode: _model.timelineFocusNode!,
           hintText: 'e.g. Move-in by Spring 2027',
         ),
         _buildTextField(
           label: 'Style Preferences',
-          controller: _model.styleController,
-          focusNode: _model.styleFocusNode,
+          controller: _model.styleController!,
+          focusNode: _model.styleFocusNode!,
           hintText: 'e.g. Modern, warm neutrals',
         ),
         SizedBox(height: 12.0),
@@ -823,9 +881,23 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
               child: FFButtonWidget(
                 onPressed: _isSubmitting ? null : _saveOnboarding,
                 text: _isSubmitting ? 'Saving...' : 'Finish',
+                icon: _isSubmitting
+                    ? SizedBox(
+                        width: 20.0,
+                        height: 20.0,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.0,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      )
+                    : null,
                 options: FFButtonOptions(
                   height: 48.0,
-                  color: Color(0xFFB8956A),
+                  color: _isSubmitting 
+                      ? Color(0xFFB8956A).withOpacity(0.7)
+                      : Color(0xFFB8956A),
                   textStyle: FlutterFlowTheme.of(context)
                       .labelLarge
                       .override(
@@ -897,36 +969,38 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
           centerTitle: false,
           elevation: 0.0,
         ),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsetsDirectional.fromSTEB(24.0, 24.0, 24.0, 40.0),
-            child: Container(
-              width: double.infinity,
-              constraints: BoxConstraints(maxWidth: 560.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(
-                    blurRadius: 30.0,
-                    color: Color(0x14000000),
-                    offset: Offset(0.0, 10.0),
-                  )
-                ],
-                borderRadius: BorderRadius.circular(24.0),
-                border: Border.all(
-                  color: Color(0xFFD4C4B0),
-                  width: 1.0,
-                ),
-              ),
-              child: Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(24.0, 28.0, 24.0, 28.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  children: [
-                    if (_stepIndex == 0) _buildRoleStep(),
-                    if (_stepIndex == 1) _buildCreateAccountStep(),
-                    if (_stepIndex == 2) _buildOnboardingStep(),
+        body: Center(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsetsDirectional.fromSTEB(24.0, 24.0, 24.0, 40.0),
+              child: Container(
+                width: double.infinity,
+                constraints: BoxConstraints(maxWidth: 560.0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      blurRadius: 30.0,
+                      color: Color(0x14000000),
+                      offset: Offset(0.0, 10.0),
+                    )
                   ],
+                  borderRadius: BorderRadius.circular(24.0),
+                  border: Border.all(
+                    color: Color(0xFFD4C4B0),
+                    width: 1.0,
+                  ),
+                ),
+                child: Padding(
+                  padding: EdgeInsetsDirectional.fromSTEB(24.0, 28.0, 24.0, 28.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      if (_stepIndex == 0) _buildRoleStep(),
+                      if (_stepIndex == 1) _buildCreateAccountStep(),
+                      if (_stepIndex == 2) _buildOnboardingStep(),
+                    ],
+                  ),
                 ),
               ),
             ),

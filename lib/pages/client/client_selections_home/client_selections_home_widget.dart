@@ -457,7 +457,25 @@ class _ClientSelectionsHomeWidgetState
                 color: Color(0xFF2C2C2C),
                 size: 22.0,
               ),
-              body: StreamBuilder<QuerySnapshot>(
+              onPressed: () {
+                context.pop();
+              },
+            ),
+          ),
+          title: Text(
+            'My Selections',
+            style: FlutterFlowTheme.of(context).titleMedium.override(
+                  font: GoogleFonts.interTight(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  color: Color(0xFF2C2C2C),
+                  fontSize: 18.0,
+                ),
+          ),
+          centerTitle: false,
+          elevation: 0.0,
+        ),
+        body: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('projects')
                     .doc(_projectId)
@@ -949,4 +967,7 @@ class _ClientSelectionsHomeWidgetState
                   );
                 },
               ),
-                                        Icons.chair_rounded,
+      ),
+    );
+  }
+}

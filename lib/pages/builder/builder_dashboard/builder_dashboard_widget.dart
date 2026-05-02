@@ -757,6 +757,7 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                                 ),
                               ),
                             ),
+                            ),
                             Expanded(
                               child: Padding(
                                 padding: EdgeInsets.all(20.0),
@@ -855,6 +856,7 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                                   ),
                                 ),
                               ),
+                            ),
                             ),
                           ].divide(SizedBox(width: 12.0)),
                         ),

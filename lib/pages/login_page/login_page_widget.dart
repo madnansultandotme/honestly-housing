@@ -40,6 +40,9 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
   late LoginPageModel _model;
 
   final scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _isLoading = false;
+  String? _errorMessage;
+  String? _errorType; // 'auth' or 'network'
 
   @override
   void initState() {
@@ -537,64 +540,66 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                   ].divide(SizedBox(height: 16.0)),
                                 ),
                               ),
-                              Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Color(0xFFF9EDEC),
-                                  borderRadius: BorderRadius.circular(10.0),
-                                  border: Border.all(
-                                    color: Color(0xFFE8B4B0),
-                                    width: 1.0,
+                              if (_errorType == 'auth')
+                                Container(
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFF9EDEC),
+                                    borderRadius: BorderRadius.circular(10.0),
+                                    border: Border.all(
+                                      color: Color(0xFFE8B4B0),
+                                      width: 1.0,
+                                    ),
                                   ),
-                                ),
-                                child: Padding(
-                                  padding: EdgeInsetsDirectional.fromSTEB(
-                                      14.0, 12.0, 14.0, 12.0),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.max,
-                                    children: [
-                                      Icon(
-                                        Icons.error_outline_rounded,
-                                        color: Color(0xFFD4433A),
-                                        size: 18.0,
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          'Invalid email or password. Please try again.',
-                                          style: FlutterFlowTheme.of(context)
-                                              .bodySmall
-                                              .override(
-                                                font: GoogleFonts.inter(
+                                  child: Padding(
+                                    padding: EdgeInsetsDirectional.fromSTEB(
+                                        14.0, 12.0, 14.0, 12.0),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.max,
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline_rounded,
+                                          color: Color(0xFFD4433A),
+                                          size: 18.0,
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            _errorMessage ?? 'Invalid email or password. Please try again.',
+                                            style: FlutterFlowTheme.of(context)
+                                                .bodySmall
+                                                .override(
+                                                  font: GoogleFonts.inter(
+                                                    fontWeight:
+                                                        FlutterFlowTheme.of(
+                                                                context)
+                                                            .bodySmall
+                                                            .fontWeight,
+                                                    fontStyle:
+                                                        FlutterFlowTheme.of(
+                                                                context)
+                                                            .bodySmall
+                                                            .fontStyle,
+                                                  ),
+                                                  color: Color(0xFFD4433A),
+                                                  fontSize: 13.0,
+                                                  letterSpacing: 0.0,
                                                   fontWeight:
-                                                      FlutterFlowTheme.of(
-                                                              context)
+                                                      FlutterFlowTheme.of(context)
                                                           .bodySmall
                                                           .fontWeight,
                                                   fontStyle:
-                                                      FlutterFlowTheme.of(
-                                                              context)
+                                                      FlutterFlowTheme.of(context)
                                                           .bodySmall
                                                           .fontStyle,
                                                 ),
-                                                color: Color(0xFFD4433A),
-                                                fontSize: 13.0,
-                                                letterSpacing: 0.0,
-                                                fontWeight:
-                                                    FlutterFlowTheme.of(context)
-                                                        .bodySmall
-                                                        .fontWeight,
-                                                fontStyle:
-                                                    FlutterFlowTheme.of(context)
-                                                        .bodySmall
-                                                        .fontStyle,
-                                              ),
+                                          ),
                                         ),
-                                      ),
-                                    ].divide(SizedBox(width: 10.0)),
+                                      ].divide(SizedBox(width: 10.0)),
+                                    ),
                                   ),
                                 ),
-                              ),
-                              Container(
+                              if (_errorType == 'network')
+                                Container(
                                 width: double.infinity,
                                 decoration: BoxDecoration(
                                   color: Color(0xFFFFF8ED),
@@ -655,23 +660,22 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                 padding: EdgeInsetsDirectional.fromSTEB(
                                     0.0, 20.0, 0.0, 0.0),
                                 child: FFButtonWidget(
-                                  onPressed: () async {
+                                  onPressed: _isLoading ? null : () async {
+                                    // Clear previous errors
+                                    setState(() {
+                                      _errorMessage = null;
+                                      _errorType = null;
+                                    });
+
                                     // Validate form
                                     if (_model.formKey.currentState == null ||
                                         !_model.formKey.currentState!.validate()) {
                                       return;
                                     }
 
-                                    // Show loading dialog
-                                    showDialog(
-                                      context: context,
-                                      barrierDismissible: false,
-                                      builder: (context) => Center(
-                                        child: CircularProgressIndicator(
-                                          color: Color(0xFFB8956A),
-                                        ),
-                                      ),
-                                    );
+                                    setState(() {
+                                      _isLoading = true;
+                                    });
 
                                     try {
                                       // Sign in with Firebase
@@ -681,10 +685,13 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                         _model.textController2.text,
                                       );
 
-                                      Navigator.pop(context); // Close loading
-
                                       if (user == null) {
-                                        return; // Error already shown by auth manager
+                                        setState(() {
+                                          _isLoading = false;
+                                          _errorType = 'auth';
+                                          _errorMessage = 'Invalid email or password. Please try again.';
+                                        });
+                                        return;
                                       }
 
                                       // Get user document to check role
@@ -694,12 +701,11 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                           .get();
 
                                       if (!userDoc.exists) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('User profile not found. Please contact support.'),
-                                            backgroundColor: Color(0xFFD4433A),
-                                          ),
-                                        );
+                                        setState(() {
+                                          _isLoading = false;
+                                          _errorType = 'auth';
+                                          _errorMessage = 'User profile not found. Please contact support.';
+                                        });
                                         return;
                                       }
 
@@ -711,24 +717,41 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                       } else if (role == 'client') {
                                         context.goNamed('ClientDashboard');
                                       } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Invalid user role. Please contact support.'),
-                                            backgroundColor: Color(0xFFD4433A),
-                                          ),
-                                        );
+                                        setState(() {
+                                          _isLoading = false;
+                                          _errorType = 'auth';
+                                          _errorMessage = 'Invalid user role. Please contact support.';
+                                        });
                                       }
                                     } catch (e) {
-                                      Navigator.pop(context); // Close loading if still open
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('Login failed: ${e.toString()}'),
-                                          backgroundColor: Color(0xFFD4433A),
-                                        ),
-                                      );
+                                      setState(() {
+                                        _isLoading = false;
+                                        // Check if it's a network error
+                                        if (e.toString().contains('network') || 
+                                            e.toString().contains('connection') ||
+                                            e.toString().contains('timeout')) {
+                                          _errorType = 'network';
+                                          _errorMessage = 'Network error. Please check your connection.';
+                                        } else {
+                                          _errorType = 'auth';
+                                          _errorMessage = 'Login failed. Please try again.';
+                                        }
+                                      });
                                     }
                                   },
-                                  text: 'Sign In',
+                                  text: _isLoading ? 'Signing In...' : 'Sign In',
+                                  icon: _isLoading
+                                      ? SizedBox(
+                                          width: 20.0,
+                                          height: 20.0,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.0,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        )
+                                      : null,
                                   options: FFButtonOptions(
                                     width: double.infinity,
                                     height: 52.0,
@@ -736,7 +759,9 @@ class _LoginPageWidgetState extends State<LoginPageWidget> {
                                         0.0, 0.0, 0.0, 0.0),
                                     iconPadding: EdgeInsetsDirectional.fromSTEB(
                                         0.0, 0.0, 0.0, 0.0),
-                                    color: Color(0xFFB8956A),
+                                    color: _isLoading 
+                                        ? Color(0xFFB8956A).withOpacity(0.7)
+                                        : Color(0xFFB8956A),
                                     textStyle: FlutterFlowTheme.of(context)
                                         .titleSmall
                                         .override(

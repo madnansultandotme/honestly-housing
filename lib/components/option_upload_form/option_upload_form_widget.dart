@@ -217,9 +217,9 @@ class _OptionUploadFormWidgetState extends State<OptionUploadFormWidget> {
   }
 
   void _clearForm() {
-    _model.textController1.clear();
-    _model.textController2.clear();
-    _model.textController3.clear();
+    _model.textController1?.clear();
+    _model.textController2?.clear();
+    _model.textController3?.clear();
     _model.choiceChipsValueController?.value = [];
     setState(() {
       _model.choiceChipsValue = null;

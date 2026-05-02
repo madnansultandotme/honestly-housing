@@ -66,6 +66,23 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
   ];
   List<String> _selectedRooms = [];
   List<String> _selectedCategories = [];
+  
+  // Category allowance tracking
+  Map<String, Map<String, dynamic>> _categoryAllowances = {};
+
+  // Initialize allowances when categories are selected
+  void _initializeCategoryAllowances() {
+    for (final category in _selectedCategories) {
+      if (!_categoryAllowances.containsKey(category)) {
+        _categoryAllowances[category] = {
+          'type': 'fixed', // 'fixed' or 'perSqFt'
+          'amount': 0.0,
+        };
+      }
+    }
+    // Remove allowances for unselected categories
+    _categoryAllowances.removeWhere((key, value) => !_selectedCategories.contains(key));
+  }
 
   @override
   void initState() {
@@ -73,6 +90,7 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
     _model = createModel(context, () => BuilderProjectSetupModel());
 
     _selectedCategories = List<String>.from(_categoryOptions);
+    _initializeCategoryAllowances(); // Initialize allowances
 
     _model.textController1 ??= TextEditingController();
     _model.textFieldFocusNode1 ??= FocusNode();
@@ -159,11 +177,20 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
 
       for (var i = 0; i < _selectedCategories.length; i++) {
         final categoryName = _selectedCategories[i];
+        final allowanceData = _categoryAllowances[categoryName] ?? {'type': 'fixed', 'amount': 0.0};
+        final totalSqFt = _parseAmount(_model.textController3.text);
+        final calculatedAllowance = allowanceData['type'] == 'fixed'
+            ? allowanceData['amount']
+            : (allowanceData['amount'] * totalSqFt);
+
         final categoryRef = projectRef.collection('categories').doc();
         batch.set(categoryRef, {
           'name': categoryName,
           'required': true,
           'displayOrder': i,
+          'allowanceType': allowanceData['type'],
+          'allowanceAmount': allowanceData['amount'],
+          'calculatedAllowance': calculatedAllowance,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -248,6 +275,7 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
         'name': templateName,
         'rooms': _selectedRooms,
         'categories': _selectedCategories,
+        'categoryAllowances': _categoryAllowances,
         'bedrooms': _parseCount(_model.textController5.text),
         'bathrooms': _parseCount(_model.textController6.text),
         'offices': _parseCount(_model.textController7.text),
@@ -310,6 +338,18 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
       setState(() {
         _selectedRooms = List<String>.from(tData['rooms'] ?? []);
         _selectedCategories = List<String>.from(tData['categories'] ?? []);
+        
+        // Load category allowances
+        if (tData['categoryAllowances'] != null) {
+          _categoryAllowances = Map<String, Map<String, dynamic>>.from(
+            (tData['categoryAllowances'] as Map).map(
+              (key, value) => MapEntry(key.toString(), Map<String, dynamic>.from(value)),
+            ),
+          );
+        } else {
+          _initializeCategoryAllowances();
+        }
+        
         _model.textController5.text = (tData['bedrooms'] ?? '').toString();
         _model.textController6.text = (tData['bathrooms'] ?? '').toString();
         _model.textController7.text = (tData['offices'] ?? '').toString();
@@ -473,6 +513,7 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                                                 } else {
                                                   _selectedCategories.remove(category);
                                                 }
+                                                _initializeCategoryAllowances();
                                               });
                                             },
                                             selectedColor: Color(0xFFF5EDE3),
@@ -1221,6 +1262,307 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                     ),
                   ),
                 ),
+                
+                // Category Allowances Section
+                if (_selectedCategories.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.all(20.0),
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: 12.0,
+                            color: Color(0x0D000000),
+                            offset: Offset(0.0, 4.0),
+                          )
+                        ],
+                        borderRadius: BorderRadius.circular(16.0),
+                        border: Border.all(
+                          color: Color(0xFFE8DDD3),
+                          width: 1.0,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 4.0,
+                                  height: 20.0,
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFB8956A),
+                                    borderRadius: BorderRadius.circular(4.0),
+                                  ),
+                                ),
+                                SizedBox(width: 8.0),
+                                Text(
+                                  'Category Budgets',
+                                  style: FlutterFlowTheme.of(context).titleMedium.override(
+                                        font: GoogleFonts.interTight(fontWeight: FontWeight.bold),
+                                        color: Color(0xFF2C2825),
+                                        fontSize: 16.0,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 4.0),
+                            Text(
+                              'Set allowance or price per sq ft for each category',
+                              style: FlutterFlowTheme.of(context).labelSmall.override(
+                                    font: GoogleFonts.inter(),
+                                    color: Color(0xFF8B8680),
+                                    fontSize: 12.0,
+                                  ),
+                            ),
+                            SizedBox(height: 20.0),
+                            ..._selectedCategories.map((category) {
+                              final allowanceData = _categoryAllowances[category] ?? {'type': 'fixed', 'amount': 0.0};
+                              final isFixed = allowanceData['type'] == 'fixed';
+                              final totalSqFt = _parseAmount(_model.textController3.text);
+                              final calculatedAmount = isFixed
+                                  ? allowanceData['amount']
+                                  : (allowanceData['amount'] * totalSqFt);
+
+                              return Container(
+                                margin: EdgeInsets.only(bottom: 16.0),
+                                padding: EdgeInsets.all(14.0),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFAF8F5),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                  border: Border.all(color: Color(0xFFEDE8E2)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      category.toUpperCase(),
+                                      style: FlutterFlowTheme.of(context).labelSmall.override(
+                                            font: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                                            color: Color(0xFFB8956A),
+                                            fontSize: 10.0,
+                                            letterSpacing: 1.0,
+                                          ),
+                                    ),
+                                    SizedBox(height: 12.0),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                _categoryAllowances[category]!['type'] = 'fixed';
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: EdgeInsets.symmetric(vertical: 10.0),
+                                              decoration: BoxDecoration(
+                                                color: isFixed ? Color(0xFFB8956A) : Color(0xFFD4C4B0).withOpacity(0.3),
+                                                borderRadius: BorderRadius.horizontal(left: Radius.circular(10.0)),
+                                                border: Border.all(
+                                                  color: isFixed ? Color(0xFFB8956A) : Color(0xFFD4C4B0),
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'Fixed Allowance',
+                                                textAlign: TextAlign.center,
+                                                style: FlutterFlowTheme.of(context).labelSmall.override(
+                                                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                                      color: isFixed ? Colors.white : Color(0xFF8B8680),
+                                                      fontSize: 11.0,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                _categoryAllowances[category]!['type'] = 'perSqFt';
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: EdgeInsets.symmetric(vertical: 10.0),
+                                              decoration: BoxDecoration(
+                                                color: !isFixed ? Color(0xFFB8956A) : Color(0xFFD4C4B0).withOpacity(0.3),
+                                                borderRadius: BorderRadius.horizontal(right: Radius.circular(10.0)),
+                                                border: Border.all(
+                                                  color: !isFixed ? Color(0xFFB8956A) : Color(0xFFD4C4B0),
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                              child: Text(
+                                                'Price per Sq Ft',
+                                                textAlign: TextAlign.center,
+                                                style: FlutterFlowTheme.of(context).labelSmall.override(
+                                                      font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                                      color: !isFixed ? Colors.white : Color(0xFF8B8680),
+                                                      fontSize: 11.0,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 12.0),
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final isMobile = constraints.maxWidth < 600;
+                                        return isMobile
+                                            ? Column(
+                                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                                children: [
+                                                  TextFormField(
+                                                    initialValue: allowanceData['amount'].toString(),
+                                                    keyboardType: TextInputType.number,
+                                                    decoration: InputDecoration(
+                                                      labelText: isFixed ? 'Allowance Amount' : 'Price per Sq Ft',
+                                                      prefixText: '\$ ',
+                                                      hintText: isFixed ? '5,000' : '15.00',
+                                                      enabledBorder: OutlineInputBorder(
+                                                        borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.5),
+                                                        borderRadius: BorderRadius.circular(10.0),
+                                                      ),
+                                                      focusedBorder: OutlineInputBorder(
+                                                        borderSide: BorderSide(color: Color(0xFFB8956A), width: 1.5),
+                                                        borderRadius: BorderRadius.circular(10.0),
+                                                      ),
+                                                      filled: true,
+                                                      fillColor: Colors.white,
+                                                      contentPadding: EdgeInsets.all(12.0),
+                                                    ),
+                                                    style: FlutterFlowTheme.of(context).bodyMedium.override(
+                                                          font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                                          color: Color(0xFF2C2420),
+                                                        ),
+                                                    onChanged: (value) {
+                                                      setState(() {
+                                                        _categoryAllowances[category]!['amount'] = _parseAmount(value);
+                                                      });
+                                                    },
+                                                  ),
+                                                  if (!isFixed && totalSqFt > 0) ...[
+                                                    SizedBox(height: 8.0),
+                                                    Container(
+                                                      padding: EdgeInsets.all(12.0),
+                                                      decoration: BoxDecoration(
+                                                        color: Color(0xFFF5EDE3),
+                                                        borderRadius: BorderRadius.circular(8.0),
+                                                      ),
+                                                      child: Row(
+                                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                        children: [
+                                                          Text(
+                                                            'Total',
+                                                            style: FlutterFlowTheme.of(context).labelSmall.override(
+                                                                  font: GoogleFonts.inter(),
+                                                                  color: Color(0xFF8B8680),
+                                                                  fontSize: 11.0,
+                                                                ),
+                                                          ),
+                                                          Text(
+                                                            '\$${calculatedAmount.toStringAsFixed(2)}',
+                                                            style: FlutterFlowTheme.of(context).bodyMedium.override(
+                                                                  font: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                                                                  color: Color(0xFFB8956A),
+                                                                  fontSize: 16.0,
+                                                                ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              )
+                                            : Row(
+                                                children: [
+                                                  Expanded(
+                                                    flex: 2,
+                                                    child: TextFormField(
+                                                      initialValue: allowanceData['amount'].toString(),
+                                                      keyboardType: TextInputType.number,
+                                                      decoration: InputDecoration(
+                                                        labelText: isFixed ? 'Allowance Amount' : 'Price per Sq Ft',
+                                                        prefixText: '\$ ',
+                                                        hintText: isFixed ? '5,000' : '15.00',
+                                                        enabledBorder: OutlineInputBorder(
+                                                          borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.5),
+                                                          borderRadius: BorderRadius.circular(10.0),
+                                                        ),
+                                                        focusedBorder: OutlineInputBorder(
+                                                          borderSide: BorderSide(color: Color(0xFFB8956A), width: 1.5),
+                                                          borderRadius: BorderRadius.circular(10.0),
+                                                        ),
+                                                        filled: true,
+                                                        fillColor: Colors.white,
+                                                        contentPadding: EdgeInsets.all(12.0),
+                                                      ),
+                                                      style: FlutterFlowTheme.of(context).bodyMedium.override(
+                                                            font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                                            color: Color(0xFF2C2420),
+                                                          ),
+                                                      onChanged: (value) {
+                                                        setState(() {
+                                                          _categoryAllowances[category]!['amount'] = _parseAmount(value);
+                                                        });
+                                                      },
+                                                    ),
+                                                  ),
+                                                  if (!isFixed && totalSqFt > 0) ...[
+                                                    SizedBox(width: 12.0),
+                                                    Expanded(
+                                                      flex: 1,
+                                                      child: Container(
+                                                        padding: EdgeInsets.all(12.0),
+                                                        decoration: BoxDecoration(
+                                                          color: Color(0xFFF5EDE3),
+                                                          borderRadius: BorderRadius.circular(8.0),
+                                                        ),
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              'Total',
+                                                              style: FlutterFlowTheme.of(context).labelSmall.override(
+                                                                    font: GoogleFonts.inter(),
+                                                                    color: Color(0xFF8B8680),
+                                                                    fontSize: 9.0,
+                                                                  ),
+                                                            ),
+                                                            Text(
+                                                              '\$${calculatedAmount.toStringAsFixed(2)}',
+                                                              style: FlutterFlowTheme.of(context).bodyMedium.override(
+                                                                    font: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                                                                    color: Color(0xFFB8956A),
+                                                                    fontSize: 14.0,
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                
                 Padding(
                   padding: EdgeInsets.all(20.0),
                   child: Container(

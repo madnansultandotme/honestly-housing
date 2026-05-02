@@ -160,6 +160,26 @@ class _BuilderSelectionItemDetailWidgetState
     }
   }
 
+  // --- Room Assignment Smart Hide Logic ---
+  
+  // Calculate fixture count per room
+  Map<String, int> _calculateRoomFixtureCounts(List<DocumentSnapshot> items) {
+    final Map<String, int> counts = {};
+    for (final item in items) {
+      final data = item.data() as Map<String, dynamic>?;
+      if (data == null) continue;
+      
+      final roomName = data['roomName'] as String?;
+      final categoryName = data['categoryName'] as String?;
+      
+      // Only count lighting fixtures
+      if (roomName != null && categoryName?.toLowerCase() == 'lighting') {
+        counts[roomName] = (counts[roomName] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
   // --- Curated Options Management ---
 
   Future<void> _showAddOptionSheet({Map<String, dynamic>? existingOption, String? existingId}) async {
@@ -928,421 +948,502 @@ class _BuilderSelectionItemDetailWidgetState
         ),
         body: StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
-+              .collection('projects')
-+              .doc(widget.projectId)
-+              .collection('items')
-+              .doc(widget.itemId)
-+              .snapshots(),
-+          builder: (context, snapshot) {
-+            if (!snapshot.hasData) {
-+              return Center(
-+                child: CircularProgressIndicator(
-+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFB8956A)),
-+                ),
-+              );
-+            }
-+
-+            if (!snapshot.data!.exists) {
-+              return Center(
-+                child: Text(
-+                  'Selection not found',
-+                  style: FlutterFlowTheme.of(context).bodyMedium.override(
-+                        font: GoogleFonts.inter(),
-+                        color: Color(0xFF8B8680),
-+                        letterSpacing: 0.0,
-+                      ),
-+                ),
-+              );
-+            }
-+
-+            final data = snapshot.data!.data() as Map<String, dynamic>;
-+            final categoryName = data['categoryName'] ?? 'Category';
-+            final imageUrl = data['imageUrl'] as String?;
-+            final locked = data['locked'] == true;
-+
-+            if (!_initialized) {
-+              _model.nameController.text = data['name'] ?? '';
-+              _model.brandController.text = data['brand'] ?? '';
-+              _model.allowanceController.text =
-+                  (data['allowance'] ?? '').toString();
-+              _model.actualCostController.text =
-+                  (data['actualCost'] ?? '').toString();
-+              _model.notesController.text = data['notes'] ?? '';
-+              _model.linkController.text = data['linkUrl'] ?? '';
-+              _model.roomController.text = data['roomName'] ?? '';
-+              _selectedRoom = data['roomName'] as String?;
-+              _status = data['status'] ?? 'notStarted';
-+              _selectedDueDate =
-+                  (data['dueDate'] as Timestamp?)?.toDate();
-+              _initialized = true;
-+            }
-+
-+            return StreamBuilder<QuerySnapshot>(
-+              stream: FirebaseFirestore.instance
-+                  .collection('projects')
-+                  .doc(widget.projectId)
-+                  .collection('rooms')
-+                  .orderBy('displayOrder')
-+                  .snapshots(),
-+              builder: (context, roomsSnapshot) {
-+                final rooms = roomsSnapshot.hasData
-+                    ? roomsSnapshot.data!.docs
-+                        .map((doc) =>
-+                            (doc.data() as Map<String, dynamic>)['name'] as String)
-+                        .toList()
-+                    : <String>[];
-+
-+                return SingleChildScrollView(
-+                  child: Padding(
-+                    padding:
-+                        EdgeInsetsDirectional.fromSTEB(24.0, 24.0, 24.0, 32.0),
-+                    child: Column(
-+                      crossAxisAlignment: CrossAxisAlignment.start,
-+                      children: [
-+                        Container(
-+                          width: double.infinity,
-+                          decoration: BoxDecoration(
-+                            color: Colors.white,
-+                            borderRadius: BorderRadius.circular(16.0),
-+                            border: Border.all(
-+                              color: Color(0xFFD4C4B0),
-+                              width: 1.0,
-+                            ),
-+                            boxShadow: [
-+                              BoxShadow(
-+                                blurRadius: 12.0,
-+                                color: Color(0x14000000),
-+                                offset: Offset(0.0, 4.0),
-+                              )
-+                            ],
-+                          ),
-+                          child: Padding(
-+                            padding: EdgeInsets.all(16.0),
-+                            child: Column(
-+                              crossAxisAlignment: CrossAxisAlignment.start,
-+                              children: [
-+                                Text(
-+                                  categoryName.toString().toUpperCase(),
-+                                  style: FlutterFlowTheme.of(context)
-+                                      .labelSmall
-+                                      .override(
-+                                        font: GoogleFonts.inter(
-+                                          fontWeight: FontWeight.bold,
-+                                        ),
-+                                        color: Color(0xFFB8956A),
-+                                        letterSpacing: 1.0,
-+                                      ),
-+                                ),
-+                                SizedBox(height: 8.0),
-+                                if (imageUrl != null && imageUrl.isNotEmpty)
-+                                  ClipRRect(
-+                                    borderRadius: BorderRadius.circular(12.0),
-+                                    child: Image.network(
-+                                      imageUrl,
-+                                      width: double.infinity,
-+                                      height: 200.0,
-+                                      fit: BoxFit.cover,
-+                                    ),
-+                                  )
-+                                else
-+                                  Container(
-+                                    width: double.infinity,
-+                                    height: 200.0,
-+                                    decoration: BoxDecoration(
-+                                      color: Color(0xFFF5F0EB),
-+                                      borderRadius: BorderRadius.circular(12.0),
-+                                    ),
-+                                    child: Icon(
-+                                      Icons.image_rounded,
-+                                      color: Color(0xFFD4C4B0),
-+                                      size: 48.0,
-+                                    ),
-+                                  ),
-+                                if (locked)
-+                                  Padding(
-+                                    padding: EdgeInsetsDirectional.fromSTEB(
-+                                        0.0, 12.0, 0.0, 0.0),
-+                                    child: Container(
-+                                      decoration: BoxDecoration(
-+                                        color: Color(0xFFFCE8EC),
-+                                        borderRadius: BorderRadius.circular(8.0),
-+                                      ),
-+                                      child: Padding(
-+                                        padding: EdgeInsets.all(8.0),
-+                                        child: Row(
-+                                          children: [
-+                                            Icon(
-+                                              Icons.lock_rounded,
-+                                              color: Color(0xFFCF6679),
-+                                              size: 16.0,
-+                                            ),
-+                                            SizedBox(width: 6.0),
-+                                            Text(
-+                                              'Approved and locked',
-+                                              style: FlutterFlowTheme.of(context)
-+                                                  .bodySmall
-+                                                  .override(
-+                                                    font: GoogleFonts.inter(
-+                                                      fontWeight: FontWeight.w600,
-+                                                    ),
-+                                                    color: Color(0xFFCF6679),
-+                                                  ),
-+                                            ),
-+                                          ],
-+                                        ),
-+                                      ),
-+                                    ),
-+                                  ),
-+                              ].divide(SizedBox(height: 12.0)),
-+                            ),
-+                          ),
-+                        ),
-+                        SizedBox(height: 20.0),
-+                        _buildTextField(
-+                          label: 'Item Name',
-+                          controller: _model.nameController,
-+                          focusNode: _model.nameFocusNode,
-+                          hintText: 'e.g. Kitchen Faucet',
-+                        ),
-+                        _buildTextField(
-+                          label: 'Brand / Model',
-+                          controller: _model.brandController,
-+                          focusNode: _model.brandFocusNode,
-+                          hintText: 'e.g. Delta Trinsic',
-+                        ),
-+                        Row(
-+                          children: [
-+                            Expanded(
-+                              child: _buildTextField(
-+                                label: 'Allowance',
-+                                controller: _model.allowanceController,
-+                                focusNode: _model.allowanceFocusNode,
-+                                keyboardType: TextInputType.number,
-+                                hintText: '0.00',
-+                              ),
-+                            ),
-+                            SizedBox(width: 12.0),
-+                            Expanded(
-+                              child: _buildTextField(
-+                                label: 'Actual Cost',
-+                                controller: _model.actualCostController,
-+                                focusNode: _model.actualCostFocusNode,
-+                                keyboardType: TextInputType.number,
-+                                hintText: '0.00',
-+                              ),
-+                            ),
-+                          ],
-+                        ),
-+                        _buildTextField(
-+                          label: 'Product Link',
-+                          controller: _model.linkController,
-+                          focusNode: _model.linkFocusNode,
-+                          keyboardType: TextInputType.url,
-+                          hintText: 'https://',
-+                        ),
-+                        Column(
-+                          crossAxisAlignment: CrossAxisAlignment.start,
-+                          children: [
-+                            Text(
-+                              'Status',
-+                              style: FlutterFlowTheme.of(context)
-+                                  .labelMedium
-+                                  .override(
-+                                    font: GoogleFonts.inter(
-+                                      fontWeight: FontWeight.w600,
-+                                    ),
-+                                    color: Color(0xFF5C5450),
-+                                    fontSize: 13.0,
-+                                    letterSpacing: 0.3,
-+                                  ),
-+                            ),
-+                            Container(
-+                              width: double.infinity,
-+                              decoration: BoxDecoration(
-+                                color: Color(0xFFFAF8F5),
-+                                borderRadius: BorderRadius.circular(12.0),
-+                                border: Border.all(
-+                                  color: Color(0xFFD4C4B0),
-+                                  width: 1.5,
-+                                ),
-+                              ),
-+                              child: DropdownButtonHideUnderline(
-+                                child: DropdownButton<String>(
-+                                  value: _status,
-+                                  isExpanded: true,
-+                                  items: _statuses
-+                                      .map(
-+                                        (status) => DropdownMenuItem(
-+                                          value: status,
-+                                          child: Padding(
-+                                            padding: EdgeInsetsDirectional.fromSTEB(
-+                                                12.0, 0.0, 12.0, 0.0),
-+                                            child: Text(status),
-+                                          ),
-+                                        ),
-+                                      )
-+                                      .toList(),
-+                                  onChanged: (value) {
-+                                    if (value == null) return;
-+                                    setState(() {
-+                                      _status = value;
-+                                    });
-+                                  },
-+                                ),
-+                              ),
-+                            ),
-+                          ].divide(SizedBox(height: 6.0)),
-+                        ),
-+                        Column(
-+                          crossAxisAlignment: CrossAxisAlignment.start,
-+                          children: [
-+                            Text(
-+                              'Due Date',
-+                              style: FlutterFlowTheme.of(context)
-+                                  .labelMedium
-+                                  .override(
-+                                    font: GoogleFonts.inter(
-+                                      fontWeight: FontWeight.w600,
-+                                    ),
-+                                    color: Color(0xFF5C5450),
-+                                    fontSize: 13.0,
-+                                    letterSpacing: 0.3,
-+                                  ),
-+                            ),
-+                            InkWell(
-+                              onTap: _pickDueDate,
-+                              child: Container(
-+                                width: double.infinity,
-+                                decoration: BoxDecoration(
-+                                  color: Color(0xFFFAF8F5),
-+                                  borderRadius: BorderRadius.circular(12.0),
-+                                  border: Border.all(
-+                                    color: Color(0xFFD4C4B0),
-+                                    width: 1.5,
-+                                  ),
-+                                ),
-+                                child: Padding(
-+                                  padding: EdgeInsetsDirectional.fromSTEB(
-+                                      16.0, 16.0, 16.0, 16.0),
-+                                  child: Row(
-+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-+                                    children: [
-+                                      Text(
-+                                        _formatDate(_selectedDueDate),
-+                                        style: FlutterFlowTheme.of(context)
-+                                            .bodyMedium
-+                                            .override(
-+                                              font: GoogleFonts.inter(),
-+                                              color: Color(0xFF2C2420),
-+                                            ),
-+                                      ),
-+                                      Icon(
-+                                        Icons.calendar_today_rounded,
-+                                        color: Color(0xFFB8956A),
-+                                        size: 18.0,
-+                                      ),
-+                                    ],
-+                                  ),
-+                                ),
-+                              ),
-+                            ),
-+                          ].divide(SizedBox(height: 6.0)),
-+                        ),
-+                        if (rooms.isNotEmpty)
-+                          Column(
-+                            crossAxisAlignment: CrossAxisAlignment.start,
-+                            children: [
-+                              Text(
-+                                'Room Assignment',
-+                                style: FlutterFlowTheme.of(context)
-+                                    .labelMedium
-+                                    .override(
-+                                      font: GoogleFonts.inter(
-+                                        fontWeight: FontWeight.w600,
-+                                      ),
-+                                      color: Color(0xFF5C5450),
-+                                      fontSize: 13.0,
-+                                      letterSpacing: 0.3,
-+                                    ),
-+                              ),
-+                              Container(
-+                                width: double.infinity,
-+                                decoration: BoxDecoration(
-+                                  color: Color(0xFFFAF8F5),
-+                                  borderRadius: BorderRadius.circular(12.0),
-+                                  border: Border.all(
-+                                    color: Color(0xFFD4C4B0),
-+                                    width: 1.5,
-+                                  ),
-+                                ),
-+                                child: DropdownButtonHideUnderline(
-+                                  child: DropdownButton<String>(
-+                                    value: _selectedRoom,
-+                                    isExpanded: true,
-+                                    hint: Padding(
-+                                      padding: EdgeInsetsDirectional.fromSTEB(
-+                                          12.0, 0.0, 12.0, 0.0),
-+                                      child: Text('Select room'),
-+                                    ),
-+                                    items: rooms
-+                                        .map(
-+                                          (room) => DropdownMenuItem(
-+                                            value: room,
-+                                            child: Padding(
-+                                              padding:
-+                                                  EdgeInsetsDirectional.fromSTEB(
-+                                                      12.0, 0.0, 12.0, 0.0),
-+                                              child: Text(room),
-+                                            ),
-+                                          ),
-+                                        )
-+                                        .toList(),
-+                                    onChanged: (value) {
-+                                      setState(() {
-+                                        _selectedRoom = value;
-+                                      });
-+                                    },
-+                                  ),
-+                                ),
-+                              ),
-+                            ].divide(SizedBox(height: 6.0)),
-+                          ),
-+                        _buildTextField(
-+                          label: 'Notes',
-+                          controller: _model.notesController,
-+                          focusNode: _model.notesFocusNode,
-+                          maxLines: 4,
-+                          hintText: 'Add notes for the client or team',
-+                        ),
-+                        SizedBox(height: 16.0),
-+                        _buildCuratedOptionsSection(),
-+                        SizedBox(height: 12.0),
-+                        FFButtonWidget(
-+                          onPressed: _isSaving ? null : _saveChanges,
-+                          text: _isSaving ? 'Saving...' : 'Save Changes',
-+                          options: FFButtonOptions(
-+                            width: double.infinity,
-+                            height: 52.0,
-+                            color: Color(0xFFB8956A),
-+                            textStyle: FlutterFlowTheme.of(context)
-+                                .titleSmall
-+                                .override(
-+                                  font: GoogleFonts.interTight(
-+                                    fontWeight: FontWeight.bold,
-+                                  ),
-+                                  color: Colors.white,
-+                                ),
-+                            elevation: 0.0,
-+                            borderRadius: BorderRadius.circular(12.0),
-+                          ),
-+                        ),
-+                      ].divide(SizedBox(height: 12.0)),
-+                    ),
-+                  ),
-+                );
-+              },
-+            );
-+          },
+              .collection('projects')
+              .doc(widget.projectId)
+              .collection('items')
+              .doc(widget.itemId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFB8956A)),
+                ),
+              );
+            }
+
+            if (!snapshot.data!.exists) {
+              return Center(
+                child: Text(
+                  'Selection not found',
+                  style: FlutterFlowTheme.of(context).bodyMedium.override(
+                        font: GoogleFonts.inter(),
+                        color: Color(0xFF8B8680),
+                        letterSpacing: 0.0,
+                      ),
+                ),
+              );
+            }
+
+            final data = snapshot.data!.data() as Map<String, dynamic>;
+            final categoryName = data['categoryName'] ?? 'Category';
+            final imageUrl = data['imageUrl'] as String?;
+            final locked = data['locked'] == true;
+
+            if (!_initialized) {
+              _model.nameController.text = data['name'] ?? '';
+              _model.brandController.text = data['brand'] ?? '';
+              _model.allowanceController.text =
+                  (data['allowance'] ?? '').toString();
+              _model.actualCostController.text =
+                  (data['actualCost'] ?? '').toString();
+              _model.notesController.text = data['notes'] ?? '';
+              _model.linkController.text = data['linkUrl'] ?? '';
+              _model.roomController.text = data['roomName'] ?? '';
+              _selectedRoom = data['roomName'] as String?;
+              _status = data['status'] ?? 'notStarted';
+              _selectedDueDate =
+                  (data['dueDate'] as Timestamp?)?.toDate();
+              _initialized = true;
+            }
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('projects')
+                  .doc(widget.projectId)
+                  .collection('rooms')
+                  .orderBy('displayOrder')
+                  .snapshots(),
+              builder: (context, roomsSnapshot) {
+                final rooms = roomsSnapshot.hasData
+                    ? roomsSnapshot.data!.docs
+                        .map((doc) =>
+                            (doc.data() as Map<String, dynamic>)['name'] as String)
+                        .toList()
+                    : <String>[];
+
+                return SingleChildScrollView(
+                  child: Padding(
+                    padding:
+                        EdgeInsetsDirectional.fromSTEB(24.0, 24.0, 24.0, 32.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16.0),
+                            border: Border.all(
+                              color: Color(0xFFD4C4B0),
+                              width: 1.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                blurRadius: 12.0,
+                                color: Color(0x14000000),
+                                offset: Offset(0.0, 4.0),
+                              )
+                            ],
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  categoryName.toString().toUpperCase(),
+                                  style: FlutterFlowTheme.of(context)
+                                      .labelSmall
+                                      .override(
+                                        font: GoogleFonts.inter(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        color: Color(0xFFB8956A),
+                                        letterSpacing: 1.0,
+                                      ),
+                                ),
+                                SizedBox(height: 8.0),
+                                if (imageUrl != null && imageUrl.isNotEmpty)
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12.0),
+                                    child: Image.network(
+                                      imageUrl,
+                                      width: double.infinity,
+                                      height: 200.0,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                else
+                                  Container(
+                                    width: double.infinity,
+                                    height: 200.0,
+                                    decoration: BoxDecoration(
+                                      color: Color(0xFFF5F0EB),
+                                      borderRadius: BorderRadius.circular(12.0),
+                                    ),
+                                    child: Icon(
+                                      Icons.image_rounded,
+                                      color: Color(0xFFD4C4B0),
+                                      size: 48.0,
+                                    ),
+                                  ),
+                                if (locked)
+                                  Padding(
+                                    padding: EdgeInsetsDirectional.fromSTEB(
+                                        0.0, 12.0, 0.0, 0.0),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Color(0xFFFCE8EC),
+                                        borderRadius: BorderRadius.circular(8.0),
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              Icons.lock_rounded,
+                                              color: Color(0xFFCF6679),
+                                              size: 16.0,
+                                            ),
+                                            SizedBox(width: 6.0),
+                                            Text(
+                                              'Approved and locked',
+                                              style: FlutterFlowTheme.of(context)
+                                                  .bodySmall
+                                                  .override(
+                                                    font: GoogleFonts.inter(
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                    color: Color(0xFFCF6679),
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ].divide(SizedBox(height: 12.0)),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 20.0),
+                        _buildTextField(
+                          label: 'Item Name',
+                          controller: _model.nameController!,
+                          focusNode: _model.nameFocusNode!,
+                          hintText: 'e.g. Kitchen Faucet',
+                        ),
+                        _buildTextField(
+                          label: 'Brand / Model',
+                          controller: _model.brandController!,
+                          focusNode: _model.brandFocusNode!,
+                          hintText: 'e.g. Delta Trinsic',
+                        ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildTextField(
+                                label: 'Allowance',
+                                controller: _model.allowanceController!,
+                                focusNode: _model.allowanceFocusNode!,
+                                keyboardType: TextInputType.number,
+                                hintText: '0.00',
+                              ),
+                            ),
+                            SizedBox(width: 12.0),
+                            Expanded(
+                              child: _buildTextField(
+                                label: 'Actual Cost',
+                                controller: _model.actualCostController!,
+                                focusNode: _model.actualCostFocusNode!,
+                                keyboardType: TextInputType.number,
+                                hintText: '0.00',
+                              ),
+                            ),
+                          ],
+                        ),
+                        _buildTextField(
+                          label: 'Product Link',
+                          controller: _model.linkController!,
+                          focusNode: _model.linkFocusNode!,
+                          keyboardType: TextInputType.url,
+                          hintText: 'https://',
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Status',
+                              style: FlutterFlowTheme.of(context)
+                                  .labelMedium
+                                  .override(
+                                    font: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    color: Color(0xFF5C5450),
+                                    fontSize: 13.0,
+                                    letterSpacing: 0.3,
+                                  ),
+                            ),
+                            Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Color(0xFFFAF8F5),
+                                borderRadius: BorderRadius.circular(12.0),
+                                border: Border.all(
+                                  color: Color(0xFFD4C4B0),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  value: _status,
+                                  isExpanded: true,
+                                  items: _statuses
+                                      .map(
+                                        (status) => DropdownMenuItem(
+                                          value: status,
+                                          child: Padding(
+                                            padding: EdgeInsetsDirectional.fromSTEB(
+                                                12.0, 0.0, 12.0, 0.0),
+                                            child: Text(status),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    setState(() {
+                                      _status = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                          ].divide(SizedBox(height: 6.0)),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Due Date',
+                              style: FlutterFlowTheme.of(context)
+                                  .labelMedium
+                                  .override(
+                                    font: GoogleFonts.inter(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    color: Color(0xFF5C5450),
+                                    fontSize: 13.0,
+                                    letterSpacing: 0.3,
+                                  ),
+                            ),
+                            InkWell(
+                              onTap: _pickDueDate,
+                              child: Container(
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFAF8F5),
+                                  borderRadius: BorderRadius.circular(12.0),
+                                  border: Border.all(
+                                    color: Color(0xFFD4C4B0),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsetsDirectional.fromSTEB(
+                                      16.0, 16.0, 16.0, 16.0),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        _formatDate(_selectedDueDate),
+                                        style: FlutterFlowTheme.of(context)
+                                            .bodyMedium
+                                            .override(
+                                              font: GoogleFonts.inter(),
+                                              color: Color(0xFF2C2420),
+                                            ),
+                                      ),
+                                      Icon(
+                                        Icons.calendar_today_rounded,
+                                        color: Color(0xFFB8956A),
+                                        size: 18.0,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ].divide(SizedBox(height: 6.0)),
+                        ),
+                        // Room Assignment with Smart Hide Logic
+                        if (rooms.isNotEmpty)
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseFirestore.instance
+                                .collection('projects')
+                                .doc(widget.projectId)
+                                .snapshots(),
+                            builder: (context, projectSnapshot) {
+                              if (!projectSnapshot.hasData) {
+                                return SizedBox.shrink();
+                              }
+
+                              final projectData = projectSnapshot.data!.data() as Map<String, dynamic>?;
+                              final maxFixturesPerRoom = projectData?['fixtures'] ?? 999;
+
+                              return StreamBuilder<QuerySnapshot>(
+                                stream: FirebaseFirestore.instance
+                                    .collection('projects')
+                                    .doc(widget.projectId)
+                                    .collection('items')
+                                    .where('categoryName', isEqualTo: 'Lighting')
+                                    .snapshots(),
+                                builder: (context, itemsSnapshot) {
+                                  final roomFixtureCounts = itemsSnapshot.hasData
+                                      ? _calculateRoomFixtureCounts(itemsSnapshot.data!.docs)
+                                      : <String, int>{};
+
+                                  // Filter out completed rooms (but keep currently selected room)
+                                  final availableRooms = rooms.where((room) {
+                                    final count = roomFixtureCounts[room] ?? 0;
+                                    if (room == _selectedRoom) return true;
+                                    return count < maxFixturesPerRoom;
+                                  }).toList();
+
+                                  // Build completed rooms list
+                                  final completedRooms = rooms.where((room) {
+                                    final count = roomFixtureCounts[room] ?? 0;
+                                    return count >= maxFixturesPerRoom && room != _selectedRoom;
+                                  }).toList();
+
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Room Assignment',
+                                        style: FlutterFlowTheme.of(context).labelMedium.override(
+                                              font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                              color: Color(0xFF5C5450),
+                                              fontSize: 13.0,
+                                              letterSpacing: 0.3,
+                                            ),
+                                      ),
+                                      SizedBox(height: 6.0),
+                                      Container(
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          color: Color(0xFFFAF8F5),
+                                          borderRadius: BorderRadius.circular(12.0),
+                                          border: Border.all(
+                                            color: Color(0xFFD4C4B0),
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        child: DropdownButtonHideUnderline(
+                                          child: DropdownButton<String>(
+                                            value: _selectedRoom,
+                                            isExpanded: true,
+                                            hint: Padding(
+                                              padding: EdgeInsetsDirectional.fromSTEB(12.0, 0.0, 12.0, 0.0),
+                                              child: Text('Select room'),
+                                            ),
+                                            items: availableRooms.map((room) {
+                                              final count = roomFixtureCounts[room] ?? 0;
+                                              return DropdownMenuItem(
+                                                value: room,
+                                                child: Padding(
+                                                  padding: EdgeInsetsDirectional.fromSTEB(12.0, 0.0, 12.0, 0.0),
+                                                  child: Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    children: [
+                                                      Expanded(child: Text(room)),
+                                                      if (count > 0)
+                                                        Text(
+                                                          '($count/$maxFixturesPerRoom)',
+                                                          style: FlutterFlowTheme.of(context).bodySmall.override(
+                                                                font: GoogleFonts.inter(),
+                                                                color: Color(0xFF8B8680),
+                                                                fontSize: 11.0,
+                                                              ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            }).toList(),
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _selectedRoom = value;
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      if (completedRooms.isNotEmpty) ...[
+                                        SizedBox(height: 8.0),
+                                        Container(
+                                          padding: EdgeInsets.all(10.0),
+                                          decoration: BoxDecoration(
+                                            color: Color(0xFFF0F7F0),
+                                            borderRadius: BorderRadius.circular(8.0),
+                                            border: Border.all(color: Color(0xFF27AE60).withOpacity(0.3)),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Icon(
+                                                Icons.check_circle,
+                                                color: Color(0xFF27AE60),
+                                                size: 16.0,
+                                              ),
+                                              SizedBox(width: 8.0),
+                                              Expanded(
+                                                child: Text(
+                                                  'Completed: ${completedRooms.join(", ")}',
+                                                  style: FlutterFlowTheme.of(context).bodySmall.override(
+                                                        font: GoogleFonts.inter(fontWeight: FontWeight.w600),
+                                                        color: Color(0xFF27AE60),
+                                                        fontSize: 11.0,
+                                                      ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        _buildTextField(
+                          label: 'Notes',
+                          controller: _model.notesController!,
+                          focusNode: _model.notesFocusNode!,
+                          maxLines: 4,
+                          hintText: 'Add notes for the client or team',
+                        ),
+                        SizedBox(height: 16.0),
+                        _buildCuratedOptionsSection(),
+                        SizedBox(height: 12.0),
+                        FFButtonWidget(
+                          onPressed: _isSaving ? null : _saveChanges,
+                          text: _isSaving ? 'Saving...' : 'Save Changes',
+                          options: FFButtonOptions(
+                            width: double.infinity,
+                            height: 52.0,
+                            color: Color(0xFFB8956A),
+                            textStyle: FlutterFlowTheme.of(context)
+                                .titleSmall
+                                .override(
+                                  font: GoogleFonts.interTight(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  color: Colors.white,
+                                ),
+                            elevation: 0.0,
+                            borderRadius: BorderRadius.circular(12.0),
+                          ),
+                        ),
+                      ].divide(SizedBox(height: 12.0)),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
          ),
        ),
      );

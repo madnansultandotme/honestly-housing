@@ -293,7 +293,7 @@ class _BuilderSelectionItemsListWidgetState
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
                               child: Column(
-                                crossAxisSize: MainAxisSize.min,
+                                mainAxisSize: MainAxisSize.min,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(

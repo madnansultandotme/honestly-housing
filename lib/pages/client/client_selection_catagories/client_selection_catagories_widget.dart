@@ -135,8 +135,11 @@ class _ClientSelectionCatagoriesWidgetState
         ),
         body: SafeArea(
           top: true,
-          child: StreamBuilder<UsersRecord?>(
-            stream: UsersRecord.getDocument(currentUserReference!),
+          child: StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(currentUserUid)
+                .snapshots(),
             builder: (context, userSnapshot) {
               if (!userSnapshot.hasData) {
                 return Center(
@@ -152,8 +155,8 @@ class _ClientSelectionCatagoriesWidgetState
                 );
               }
 
-              final user = userSnapshot.data;
-              if (user == null || user.projectIds.isEmpty) {
+              final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+              if (userData == null) {
                 return Center(
                   child: Text(
                     'No project assigned',
@@ -166,7 +169,21 @@ class _ClientSelectionCatagoriesWidgetState
                 );
               }
 
-              final projectId = user.projectIds.first;
+              final projectIds = List<String>.from(userData['projectIds'] ?? []);
+              if (projectIds.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No project assigned',
+                    style: FlutterFlowTheme.of(context).bodyMedium.override(
+                          font: GoogleFonts.inter(),
+                          color: Color(0xFF8B8680),
+                          letterSpacing: 0.0,
+                        ),
+                  ),
+                );
+              }
+
+              final projectId = projectIds.first;
 
               return StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance

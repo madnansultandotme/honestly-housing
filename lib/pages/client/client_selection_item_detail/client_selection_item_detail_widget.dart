@@ -156,8 +156,12 @@ class _ClientSelectionItemDetailWidgetState
         final itemName = itemData?['name'] ?? 'Unknown Item';
 
         // Get user data
-        final userDoc = await UsersRecord.getDocumentOnce(currentUserReference!);
-        final userName = userDoc?.displayName ?? 'Unknown User';
+        final userDocSnap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUserUid)
+            .get();
+        final userDataMap = userDocSnap.data() as Map<String, dynamic>? ?? {};
+        final userName = userDataMap['display_name'] as String? ?? 'Unknown User';
 
         // Create change request
         await FirebaseFirestore.instance

@@ -112,7 +112,7 @@ class _BuilderProjectsWidgetState extends State<BuilderProjectsWidget> {
                 children: [
                   FFButtonWidget(
                     onPressed: () {
-                      print('Button pressed ...');
+                      context.pushNamed('BuilderProjectSetup');
                     },
                     text: 'New Project',
                     options: FFButtonOptions(
@@ -366,16 +366,11 @@ class _BuilderProjectsWidgetState extends State<BuilderProjectsWidget> {
                                                                     .get(),
                                                                 builder: (context,
                                                                     clientSnapshot) {
-                                                                  final clientName =
-                                                                      clientSnapshot
-                                                                                  .hasData
-                                                                              ? (clientSnapshot
-                                                                                          .data()
-                                                                                          ?.data()
-                                                                                      as Map<String,
-                                                                                          dynamic>?)?['displayName'] as String? ??
-                                                                                  'Unknown Client'
-                                                                              : 'Loading...';
+                                                                  String clientName = 'Loading...';
+                                                                  if (clientSnapshot.hasData && clientSnapshot.data != null && clientSnapshot.data!.exists) {
+                                                                    final cData = clientSnapshot.data!.data() as Map<String, dynamic>?;
+                                                                    clientName = cData?['display_name'] as String? ?? 'Unknown Client';
+                                                                  }
                                                                   return Text(
                                                                     'Client: $clientName',
                                                                     style: FlutterFlowTheme

@@ -137,7 +137,10 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: ClientSelectionItemDetailWidget.routeName,
           path: ClientSelectionItemDetailWidget.routePath,
-          builder: (context, params) => ClientSelectionItemDetailWidget(),
+          builder: (context, params) => ClientSelectionItemDetailWidget(
+            itemId: params.getParam('itemId', ParamType.String) ?? '',
+            projectId: params.getParam('projectId', ParamType.String) ?? '',
+          ),
         ),
         FFRoute(
           name: DueDatesWidget.routeName,

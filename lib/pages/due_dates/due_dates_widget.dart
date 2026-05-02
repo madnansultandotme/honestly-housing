@@ -374,8 +374,11 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
             elevation: 0.0,
           ),
         ),
-        body: StreamBuilder<UsersRecord?>(
-          stream: UsersRecord.getDocument(currentUserReference!),
+        body: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUserUid)
+              .snapshots(),
           builder: (context, userSnapshot) {
             if (!userSnapshot.hasData) {
               return Center(
@@ -389,8 +392,9 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
               );
             }
 
-            final user = userSnapshot.data;
-            if (user == null || user.projectIds.isEmpty) {
+            final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+            final userProjectIds = List<String>.from(userData?['projectIds'] ?? []);
+            if (userData == null || userProjectIds.isEmpty) {
               return Center(
                 child: Text(
                   'No project assigned',
@@ -429,7 +433,7 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
                   final projectId = path.split('/')[1]; // Extract projectId from path
                   return {'doc': doc, 'projectId': projectId};
                 }).where((item) {
-                  return user.projectIds.contains(item['projectId']);
+                  return userProjectIds.contains(item['projectId']);
                 }).toList();
 
                 if (allItemsWithProjects.isEmpty) {
