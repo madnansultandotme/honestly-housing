@@ -164,7 +164,7 @@ class _SignupFlowWidgetState extends State<SignupFlowWidget> {
       _isSubmitting = true;
     });
 
-    User? createdUser;
+    BaseAuthUser? createdUser;
     
     try {
       final user = await authManager.createAccountWithEmail(

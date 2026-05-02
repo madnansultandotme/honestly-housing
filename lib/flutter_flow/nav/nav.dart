@@ -9,6 +9,7 @@ import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 
 import '/index.dart';
+import 'role_based_redirect.dart';
 
 export 'package:go_router/go_router.dart';
 export 'serialization_util.dart';
@@ -76,13 +77,13 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       refreshListenable: appStateNotifier,
       navigatorKey: appNavigatorKey,
       errorBuilder: (context, state) =>
-          appStateNotifier.loggedIn ? BuilderDashboardWidget() : LoginPageWidget(),
+          appStateNotifier.loggedIn ? RoleBasedRedirect() : LoginPageWidget(),
       routes: [
         FFRoute(
           name: '_initialize',
           path: '/',
           builder: (context, _) =>
-              appStateNotifier.loggedIn ? BuilderDashboardWidget() : LoginPageWidget(),
+              appStateNotifier.loggedIn ? RoleBasedRedirect() : LoginPageWidget(),
         ),
         FFRoute(
           name: LoginPageWidget.routeName,
@@ -95,9 +96,9 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           builder: (context, params) => BuilderDashboardWidget(),
         ),
         FFRoute(
-          name: ClientDashboardWidget.routeName,
-          path: ClientDashboardWidget.routePath,
-          builder: (context, params) => ClientDashboardWidget(),
+          name: ClientDashboardWidgetModular.routeName,
+          path: ClientDashboardWidgetModular.routePath,
+          builder: (context, params) => ClientDashboardWidgetModular(),
         ),
         FFRoute(
           name: BuilderProjectsWidget.routeName,
@@ -112,7 +113,9 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: BuilderProjectDetailsWidget.routeName,
           path: BuilderProjectDetailsWidget.routePath,
-          builder: (context, params) => BuilderProjectDetailsWidget(),
+          builder: (context, params) => BuilderProjectDetailsWidget(
+            projectId: params.getParam('projectId', ParamType.String),
+          ),
         ),
         FFRoute(
           name: ClientProjectDetaiWidget.routeName,
@@ -156,6 +159,11 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           name: MessagesWidget.routeName,
           path: MessagesWidget.routePath,
           builder: (context, params) => MessagesWidget(),
+        ),
+        FFRoute(
+          name: ProfileSettingsWidget.routeName,
+          path: ProfileSettingsWidget.routePath,
+          builder: (context, params) => ProfileSettingsWidget(),
         ),
         FFRoute(
           name: SignupFlowWidget.routeName,

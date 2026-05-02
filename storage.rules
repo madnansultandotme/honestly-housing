@@ -91,7 +91,19 @@ service firebase.storage {
                        (isDocument() && isValidDocumentSize()));
     }
     
-    // User profile photos (optional feature)
+    // User profile photos (avatars)
+    match /user_avatars/{fileName} {
+      // Allow anyone to read avatars (public)
+      allow read: if true;
+      
+      // Allow write if the filename starts with the user's ID (e.g., userId.jpg)
+      allow write: if isSignedIn() && 
+                      fileName.matches(request.auth.uid + '.*') &&
+                      isImage() && 
+                      isValidImageSize();
+    }
+    
+    // User profile photos (optional feature - legacy)
     match /users/{userId}/profile.jpg {
       allow read: if isSignedIn();
       

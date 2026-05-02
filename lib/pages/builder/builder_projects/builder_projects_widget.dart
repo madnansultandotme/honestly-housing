@@ -146,6 +146,30 @@ class _BuilderProjectsWidgetState extends State<BuilderProjectsWidget> {
                       borderRadius: BorderRadius.circular(10.0),
                     ),
                   ),
+                  SizedBox(width: 12.0),
+                  // Profile Avatar - Clickable to go to settings
+                  InkWell(
+                    onTap: () {
+                      context.pushNamed('ProfileSettings');
+                    },
+                    child: Container(
+                      width: 38.0,
+                      height: 38.0,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFB8956A),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Color(0xFFD4C4B0),
+                          width: 2.0,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.person,
+                        color: Colors.white,
+                        size: 20.0,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -183,7 +207,6 @@ class _BuilderProjectsWidgetState extends State<BuilderProjectsWidget> {
                             stream: FirebaseFirestore.instance
                                 .collection('projects')
                                 .where('builderOrgId', isEqualTo: _builderOrgId)
-                                .orderBy('createdAt', descending: true)
                                 .snapshots(),
                             builder: (context, snapshot) {
                               if (snapshot.hasError) {

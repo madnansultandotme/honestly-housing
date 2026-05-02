@@ -52,6 +52,11 @@ class UsersRecord extends FirestoreRecord {
   String get phone => _phone ?? '';
   bool hasPhone() => _phone != null;
 
+  // "photoUrl" field.
+  String? _photoUrl;
+  String get photoUrl => _photoUrl ?? '';
+  bool hasPhotoUrl() => _photoUrl != null;
+
   // "createdAt" field.
   DateTime? _createdAt;
   DateTime? get createdAt => _createdAt;
@@ -81,6 +86,7 @@ class UsersRecord extends FirestoreRecord {
     _builderOrgId = snapshotData['builderOrgId'] as String?;
     _projectIds = getDataList(snapshotData['projectIds']);
     _phone = snapshotData['phone'] as String?;
+    _photoUrl = snapshotData['photoUrl'] as String?;
     _createdAt = snapshotData['createdAt'] as DateTime?;
     _updatedAt = snapshotData['updatedAt'] as DateTime?;
     _lastLoginAt = snapshotData['lastLoginAt'] as DateTime?;
@@ -128,6 +134,7 @@ Map<String, dynamic> createUsersRecordData({
   String? role,
   String? builderOrgId,
   String? phone,
+  String? photoUrl,
   DateTime? createdAt,
   DateTime? updatedAt,
   DateTime? lastLoginAt,
@@ -141,6 +148,7 @@ Map<String, dynamic> createUsersRecordData({
       'role': role,
       'builderOrgId': builderOrgId,
       'phone': phone,
+      'photoUrl': photoUrl,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'lastLoginAt': lastLoginAt,
@@ -168,6 +176,7 @@ class UsersRecordDocumentEquality implements Equality<UsersRecord> {
         e1?.builderOrgId == e2?.builderOrgId &&
         listEquality.equals(e1?.projectIds, e2?.projectIds) &&
         e1?.phone == e2?.phone &&
+        e1?.photoUrl == e2?.photoUrl &&
         e1?.createdAt == e2?.createdAt &&
         e1?.updatedAt == e2?.updatedAt &&
         e1?.lastLoginAt == e2?.lastLoginAt &&
@@ -183,6 +192,7 @@ class UsersRecordDocumentEquality implements Equality<UsersRecord> {
         e?.builderOrgId,
         e?.projectIds,
         e?.phone,
+        e?.photoUrl,
         e?.createdAt,
         e?.updatedAt,
         e?.lastLoginAt,

@@ -61,11 +61,14 @@ service cloud.firestore {
       // Members can read their organization
       allow read: if isSignedIn() && belongsToBuilderOrg(orgId);
       
+      // Authenticated users can create organizations (during signup)
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      
       // Only builders in the org can update
       allow update: if isBuilder() && belongsToBuilderOrg(orgId);
       
-      // Creation and deletion restricted (admin only)
-      allow create, delete: if false;
+      // Deletion restricted (admin only)
+      allow delete: if false;
       
       // Options subcollection (Good/Better/Best products)
       match /options/{optionId} {
@@ -86,22 +89,40 @@ service cloud.firestore {
     // Projects
     match /projects/{projectId} {
       // Users can read projects they have access to
-      allow read: if isSignedIn() && hasAccessToProject(projectId);
+      // For new projects being created, allow the creator to read
+      allow read: if isSignedIn() && (
+        hasAccessToProject(projectId) || 
+        resource.data.builderOrgId == getUserData().builderOrgId
+      );
       
-      // Only builders can create/update/delete projects
-      allow create: if isBuilder();
-      allow update, delete: if isBuilder() && hasAccessToProject(projectId);
+      // Only builders/designers can create projects
+      allow create: if isSignedIn() && (
+        getUserData().role == 'builder' || 
+        getUserData().role == 'designer'
+      );
+      
+      // Only builders/designers can update/delete their org's projects
+      allow update, delete: if isSignedIn() && (
+        (getUserData().role == 'builder' || getUserData().role == 'designer') &&
+        resource.data.builderOrgId == getUserData().builderOrgId
+      );
       
       // Rooms subcollection
       match /rooms/{roomId} {
         allow read: if isSignedIn() && hasAccessToProject(projectId);
-        allow write: if isBuilder() && hasAccessToProject(projectId);
+        allow write: if isBuilder() && (
+          hasAccessToProject(projectId) ||
+          get(/databases/$(database)/documents/projects/$(projectId)).data.builderOrgId == getUserData().builderOrgId
+        );
       }
       
       // Categories subcollection
       match /categories/{categoryId} {
         allow read: if isSignedIn() && hasAccessToProject(projectId);
-        allow write: if isBuilder() && hasAccessToProject(projectId);
+        allow write: if isBuilder() && (
+          hasAccessToProject(projectId) ||
+          get(/databases/$(database)/documents/projects/$(projectId)).data.builderOrgId == getUserData().builderOrgId
+        );
       }
       
       // Items subcollection (selection items/products)
