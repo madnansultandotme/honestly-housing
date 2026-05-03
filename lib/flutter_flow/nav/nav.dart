@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:provider/provider.dart';
 
 import '/auth/base_auth_user_provider.dart';
@@ -73,7 +74,7 @@ class AppStateNotifier extends ChangeNotifier {
 
 GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
       initialLocation: '/',
-      debugLogDiagnostics: true,
+      debugLogDiagnostics: kDebugMode,
       refreshListenable: appStateNotifier,
       navigatorKey: appNavigatorKey,
       errorBuilder: (context, state) =>
@@ -153,12 +154,16 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
         FFRoute(
           name: PhotosWidget.routeName,
           path: PhotosWidget.routePath,
-          builder: (context, params) => PhotosWidget(),
+          builder: (context, params) => PhotosWidget(
+            projectId: params.getParam('projectId', ParamType.String),
+          ),
         ),
         FFRoute(
           name: MessagesWidget.routeName,
           path: MessagesWidget.routePath,
-          builder: (context, params) => MessagesWidget(),
+          builder: (context, params) => MessagesWidget(
+            projectId: params.getParam('projectId', ParamType.String),
+          ),
         ),
         FFRoute(
           name: ProfileSettingsWidget.routeName,

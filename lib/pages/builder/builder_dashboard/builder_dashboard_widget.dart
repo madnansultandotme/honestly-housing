@@ -1,8 +1,8 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
+import '/flutter_flow/user_network_avatar.dart';
 import '/auth/firebase_auth/auth_util.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'builder_dashboard_model.dart';
@@ -273,16 +273,17 @@ class _BuilderDashboardWidgetState extends State<BuilderDashboardWidget> {
                             child: _userPhotoUrl.isNotEmpty
                                 ? ClipRRect(
                                     borderRadius: BorderRadius.circular(24.0),
-                                    child: CachedNetworkImage(
+                                    child: userNetworkAvatar(
                                       imageUrl: _userPhotoUrl,
                                       width: 48.0,
                                       height: 48.0,
                                       fit: BoxFit.cover,
-                                      placeholder: (context, url) => CircularProgressIndicator(
+                                      placeholder: CircularProgressIndicator(
                                         strokeWidth: 2.0,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(Colors.white),
                                       ),
-                                      errorWidget: (context, url, error) => Icon(
+                                      errorBuilder: (context, error) => Icon(
                                         Icons.person,
                                         color: Colors.white,
                                         size: 24.0,

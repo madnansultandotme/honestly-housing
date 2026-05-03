@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_widgets.dart';
 import '/services/client_invitation_service.dart';
+import '/auth/firebase_auth/auth_util.dart';
 
 /// Dialog for inviting clients to a project
 class ClientInvitationDialog extends StatefulWidget {
@@ -55,6 +56,7 @@ class _ClientInvitationDialogState extends State<ClientInvitationDialog> {
       clientName: _nameController.text.trim(),
       projectId: widget.projectId,
       projectName: widget.projectName,
+      invitedBy: currentUserUid,
     );
 
     setState(() {
@@ -96,7 +98,7 @@ class _ClientInvitationDialogState extends State<ClientInvitationDialog> {
         return;
       }
       
-      // New user - show credentials
+      // New user - show credentials and warn about re-login
       setState(() {
         _showSuccess = true;
         _generatedPassword = result['password'];
@@ -265,7 +267,7 @@ class _ClientInvitationDialogState extends State<ClientInvitationDialog> {
                     SizedBox(width: 8.0),
                     Expanded(
                       child: Text(
-                        'Save these credentials! They won\'t be shown again.',
+                        'Save these credentials! They won\'t be shown again. You\'ll need to sign in again after closing this dialog.',
                         style: FlutterFlowTheme.of(context).bodySmall.override(
                               font: GoogleFonts.inter(),
                               color: Color(0xFF8B8680),
@@ -442,31 +444,49 @@ class _ClientInvitationDialogState extends State<ClientInvitationDialog> {
                 ),
           ),
         ),
-        FFButtonWidget(
+        ElevatedButton(
           onPressed: _isLoading ? null : _inviteClient,
-          text: _isLoading ? 'Creating...' : 'Invite Client',
-          icon: _isLoading
-              ? SizedBox(
-                  width: 20.0,
-                  height: 20.0,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.0,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : null,
-          options: FFButtonOptions(
-            height: 44.0,
-            padding: EdgeInsets.symmetric(horizontal: 24.0),
-            color: _isLoading ? Color(0xFFB8956A).withOpacity(0.7) : Color(0xFFB8956A),
-            textStyle: FlutterFlowTheme.of(context).titleSmall.override(
-                  font: GoogleFonts.inter(fontWeight: FontWeight.w600),
-                  color: Colors.white,
-                  letterSpacing: 0.0,
-                ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _isLoading ? Color(0xFFB8956A).withOpacity(0.7) : Color(0xFFB8956A),
+            foregroundColor: Colors.white,
             elevation: 0.0,
-            borderRadius: BorderRadius.circular(12.0),
+            padding: EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.0),
+            ),
+            minimumSize: Size(120, 44),
           ),
+          child: _isLoading
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16.0,
+                      height: 16.0,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.0,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    SizedBox(width: 8.0),
+                    Text(
+                      'Creating...',
+                      style: GoogleFonts.inter(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        fontSize: 14.0,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  'Invite Client',
+                  style: GoogleFonts.inter(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    fontSize: 14.0,
+                  ),
+                ),
         ),
       ],
     );

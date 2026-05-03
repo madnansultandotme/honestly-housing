@@ -115,7 +115,13 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
     }
   }
 
-  Widget _buildItemCard(Map<String, dynamic> itemData, String projectId, String itemId, bool isOverdue) {
+  Widget _buildItemCard(
+    Map<String, dynamic> itemData,
+    String projectId,
+    String itemId,
+    bool isOverdue,
+    bool isBuilder,
+  ) {
     final name = itemData['name'] ?? 'Unknown Item';
     final categoryName = itemData['categoryName'] ?? '';
     final status = itemData['status'] ?? 'notStarted';
@@ -125,13 +131,23 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
       padding: EdgeInsetsDirectional.fromSTEB(20.0, 0.0, 20.0, 12.0),
       child: InkWell(
         onTap: () {
-          context.pushNamed(
-            'ClientSelectionItemDetail',
-            queryParameters: {
-              'itemId': itemId,
-              'projectId': projectId,
-            },
-          );
+          if (isBuilder) {
+            context.pushNamed(
+              'BuilderSelectionItemDetail',
+              queryParameters: {
+                'itemId': itemId,
+                'projectId': projectId,
+              },
+            );
+          } else {
+            context.pushNamed(
+              'ClientSelectionItemDetail',
+              queryParameters: {
+                'itemId': itemId,
+                'projectId': projectId,
+              },
+            );
+          }
         },
         child: Container(
           width: double.infinity,
@@ -394,6 +410,8 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
 
             final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
             final userProjectIds = List<String>.from(userData?['projectIds'] ?? []);
+            final isBuilder = (userData?['role'] ?? '') == 'builder' ||
+                (userData?['role'] ?? '') == 'designer';
             if (userData == null || userProjectIds.isEmpty) {
               return Center(
                 child: Text(
@@ -564,7 +582,13 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
                               final doc = item['doc'] as DocumentSnapshot;
                               final projectId = item['projectId'] as String;
                               final data = doc.data() as Map<String, dynamic>;
-                              return _buildItemCard(data, projectId, doc.id, true);
+                              return _buildItemCard(
+                                data,
+                                projectId,
+                                doc.id,
+                                true,
+                                isBuilder,
+                              );
                             }).toList(),
                           ],
 
@@ -650,7 +674,13 @@ class _DueDatesWidgetState extends State<DueDatesWidget> {
                               final doc = item['doc'] as DocumentSnapshot;
                               final projectId = item['projectId'] as String;
                               final data = doc.data() as Map<String, dynamic>;
-                              return _buildItemCard(data, projectId, doc.id, false);
+                              return _buildItemCard(
+                                data,
+                                projectId,
+                                doc.id,
+                                false,
+                                isBuilder,
+                              );
                             }).toList(),
                           ],
 

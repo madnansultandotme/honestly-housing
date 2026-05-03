@@ -24,10 +24,14 @@ import 'package:intl/intl.dart';
 /// accent (#B8956A) send button. Apply rounded corners on bubbles and premium
 /// spacing.
 class MessagesWidget extends StatefulWidget {
-  const MessagesWidget({super.key});
+  const MessagesWidget({
+    super.key,
+    this.projectId,
+  });
 
   static String routeName = 'Messages';
   static String routePath = '/messages';
+  final String? projectId;
 
   @override
   State<MessagesWidget> createState() => _MessagesWidgetState();
@@ -57,6 +61,19 @@ class _MessagesWidgetState extends State<MessagesWidget> {
 
   Future<void> _loadProjectData() async {
     try {
+      if (widget.projectId != null && widget.projectId!.isNotEmpty) {
+        final explicitProjectDoc = await FirebaseFirestore.instance
+            .collection('projects')
+            .doc(widget.projectId)
+            .get();
+        setState(() {
+          _projectId = widget.projectId;
+          _projectName = explicitProjectDoc.data()?['name'] ?? 'Project';
+          _isLoading = false;
+        });
+        return;
+      }
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUserUid)
@@ -403,15 +420,23 @@ class _MessagesWidgetState extends State<MessagesWidget> {
                     }
                   });
 
-                  // Mark unread messages as read
+                  // Mark unread messages as read in a single batch write
+                  final unreadDocs = <DocumentSnapshot>[];
                   for (final doc in messages) {
                     final data = doc.data() as Map<String, dynamic>;
                     final readBy = List<String>.from(data['readBy'] ?? []);
                     if (!readBy.contains(currentUserUid)) {
-                      doc.reference.update({
+                      unreadDocs.add(doc);
+                    }
+                  }
+                  if (unreadDocs.isNotEmpty) {
+                    final batch = FirebaseFirestore.instance.batch();
+                    for (final unreadDoc in unreadDocs) {
+                      batch.update(unreadDoc.reference, {
                         'readBy': FieldValue.arrayUnion([currentUserUid]),
                       });
                     }
+                    batch.commit();
                   }
 
                   return ListView.builder(

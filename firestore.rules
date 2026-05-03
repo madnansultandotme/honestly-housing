@@ -34,15 +34,19 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       // Users can read their own profile
-      // Builders can read users in their organization
-      allow read: if isOwner(userId) || 
-                     (isBuilder() && get(/databases/$(database)/documents/users/$(userId)).data.builderOrgId == getUserData().builderOrgId);
+      // Builders can read any user document (needed for querying by email)
+      // Clients can read their own profile
+      allow read: if isOwner(userId) || isBuilder() ||
+                     (isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.role == 'client');
       
-      // Anyone authenticated can create their profile
+      // Anyone authenticated can create their profile (including builders and clients)
+      // No role restriction on creation
       allow create: if isSignedIn() && isOwner(userId);
       
       // Users can update their own profile
-      allow update: if isOwner(userId);
+      // Builders can update client profiles (to add projects)
+      allow update: if isOwner(userId) ||
+                       (isBuilder() && get(/databases/$(database)/documents/users/$(userId)).data.role == 'client');
       
       // Only admins can delete (implement admin check as needed)
       allow delete: if false;
@@ -101,8 +105,19 @@ service cloud.firestore {
         getUserData().role == 'designer'
       );
       
-      // Only builders/designers can update/delete their org's projects
-      allow update, delete: if isSignedIn() && (
+      // Builders/designers can update their org's projects
+      // Newly created clients can update projects to add themselves (for invitation flow)
+      // Allow if only updating clientIds and updatedAt, and the auth user is being added to clientIds
+      allow update: if isSignedIn() && (
+        ((getUserData().role == 'builder' || getUserData().role == 'designer') &&
+         resource.data.builderOrgId == getUserData().builderOrgId) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clientIds', 'updatedAt']) &&
+         request.auth.uid in request.resource.data.clientIds &&
+         !(request.auth.uid in resource.data.clientIds))
+      );
+      
+      // Only builders/designers can delete their org's projects
+      allow delete: if isSignedIn() && (
         (getUserData().role == 'builder' || getUserData().role == 'designer') &&
         resource.data.builderOrgId == getUserData().builderOrgId
       );
@@ -164,14 +179,20 @@ service cloud.firestore {
         
         // Both builders and clients can upload photos
         allow create: if isSignedIn() && hasAccessToProject(projectId) &&
-                         request.resource.data.uploadedBy == request.auth.uid;
+                         (
+                           request.resource.data.uploadedBy == request.auth.uid ||
+                           request.resource.data.createdBy == request.auth.uid
+                         );
         
         // Can update caption
         allow update: if isSignedIn() && hasAccessToProject(projectId);
         
         // Only uploader or builder can delete
         allow delete: if (isSignedIn() && hasAccessToProject(projectId) && 
-                          resource.data.uploadedBy == request.auth.uid) ||
+                          (
+                            resource.data.uploadedBy == request.auth.uid ||
+                            resource.data.createdBy == request.auth.uid
+                          )) ||
                          (isBuilder() && hasAccessToProject(projectId));
       }
       

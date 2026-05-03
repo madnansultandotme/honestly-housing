@@ -22,10 +22,14 @@ import 'package:intl/intl.dart';
 /// (#D4C4B0) photo card borders, warm neutral gray (#8B8680) for
 /// captions/timestamps. Apply rounded corners and premium spacing.
 class PhotosWidget extends StatefulWidget {
-  const PhotosWidget({super.key});
+  const PhotosWidget({
+    super.key,
+    this.projectId,
+  });
 
   static String routeName = 'Photos';
   static String routePath = '/photos';
+  final String? projectId;
 
   @override
   State<PhotosWidget> createState() => _PhotosWidgetState();
@@ -58,6 +62,14 @@ class _PhotosWidgetState extends State<PhotosWidget> {
 
   Future<void> _loadProjectId() async {
     try {
+      if (widget.projectId != null && widget.projectId!.isNotEmpty) {
+        setState(() {
+          _projectId = widget.projectId;
+          _isLoading = false;
+        });
+        return;
+      }
+
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(currentUserUid)
@@ -148,6 +160,7 @@ class _PhotosWidgetState extends State<PhotosWidget> {
         'imageUrl': downloadUrl,
         'caption': caption ?? '',
         'createdAt': FieldValue.serverTimestamp(),
+        'uploadedBy': currentUserUid,
         'createdBy': currentUserUid,
         'storagePath': storagePath,
       });

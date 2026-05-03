@@ -451,12 +451,18 @@ class _BuilderProjectDetailsWidgetState
                                                       builder: (dialogContext) => ClientInvitationDialog(
                                                         projectId: projectId,
                                                         projectName: projectName,
+                                                        onClientAdded: () {
+                                                          // Force rebuild to refresh client list
+                                                          setState(() {});
+                                                        },
                                                       ),
                                                     );
                                                     // Dialog returns true if client was added successfully
                                                     if (result == true) {
                                                       // The StreamBuilder will automatically refresh
                                                       print('Client added successfully');
+                                                      // Force a rebuild to ensure UI updates
+                                                      setState(() {});
                                                     }
                                                   },
                                                   child: Container(

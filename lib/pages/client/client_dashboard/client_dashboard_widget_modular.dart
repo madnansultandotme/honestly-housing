@@ -1,6 +1,7 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import '/flutter_flow/flutter_flow_widgets.dart';
+import '/flutter_flow/user_network_avatar.dart';
 import '/auth/firebase_auth/auth_util.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -354,33 +355,31 @@ class _ClientDashboardWidgetModularState
                       color: Color(0xFFD4C4B0),
                       shape: BoxShape.circle,
                     ),
-                    child: _userPhotoUrl.isNotEmpty
+                            child: _userPhotoUrl.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(50.0),
-                            child: Image.network(
-                              _userPhotoUrl,
+                            child: userNetworkAvatar(
+                              imageUrl: _userPhotoUrl,
                               width: 44.0,
                               height: 44.0,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: Text(
-                                    _userName.isNotEmpty
-                                        ? _userName[0].toUpperCase()
-                                        : 'C',
-                                    style: FlutterFlowTheme.of(context)
-                                        .bodyMedium
-                                        .override(
-                                          font: GoogleFonts.inter(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          color: Colors.white,
-                                          fontSize: 18.0,
-                                          letterSpacing: 0.0,
+                              errorBuilder: (context, error) => Center(
+                                child: Text(
+                                  _userName.isNotEmpty
+                                      ? _userName[0].toUpperCase()
+                                      : 'C',
+                                  style: FlutterFlowTheme.of(context)
+                                      .bodyMedium
+                                      .override(
+                                        font: GoogleFonts.inter(
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                  ),
-                                );
-                              },
+                                        color: Colors.white,
+                                        fontSize: 18.0,
+                                        letterSpacing: 0.0,
+                                      ),
+                                ),
+                              ),
                             ),
                           )
                         : Center(
@@ -540,30 +539,28 @@ class _ClientDashboardWidgetModularState
                     child: _userPhotoUrl.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(50.0),
-                            child: Image.network(
-                              _userPhotoUrl,
+                            child: userNetworkAvatar(
+                              imageUrl: _userPhotoUrl,
                               width: 44.0,
                               height: 44.0,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Center(
-                                  child: Text(
-                                    _userName.isNotEmpty
-                                        ? _userName[0].toUpperCase()
-                                        : 'C',
-                                    style: FlutterFlowTheme.of(context)
-                                        .bodyMedium
-                                        .override(
-                                          font: GoogleFonts.inter(
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                          color: Colors.white,
-                                          fontSize: 18.0,
-                                          letterSpacing: 0.0,
+                              errorBuilder: (context, error) => Center(
+                                child: Text(
+                                  _userName.isNotEmpty
+                                      ? _userName[0].toUpperCase()
+                                      : 'C',
+                                  style: FlutterFlowTheme.of(context)
+                                      .bodyMedium
+                                      .override(
+                                        font: GoogleFonts.inter(
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                  ),
-                                );
-                              },
+                                        color: Colors.white,
+                                        fontSize: 18.0,
+                                        letterSpacing: 0.0,
+                                      ),
+                                ),
+                              ),
                             ),
                           )
                         : Center(

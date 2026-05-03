@@ -74,6 +74,206 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
     _categoryAllowances.removeWhere((key, value) => !_selectedCategories.contains(key));
   }
 
+  double _parseAllowanceAmount(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(cleaned) ?? 0.0;
+  }
+
+  Future<String?> _loadBuilderOrgId() async {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUserUid)
+        .get();
+    return userDoc.data()?['builderOrgId'] as String?;
+  }
+
+  Future<void> _saveAsTemplate() async {
+    final templateNameController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('Save as Template'),
+          content: TextField(
+            controller: templateNameController,
+            decoration: InputDecoration(
+              hintText: 'Template name (e.g. Luxury 4BR)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    final templateName = templateNameController.text.trim();
+    if (templateName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter a template name.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    try {
+      final builderOrgId = await _loadBuilderOrgId();
+      if (builderOrgId == null || builderOrgId.isEmpty) {
+        throw Exception('Builder organization not found');
+      }
+
+      final categories = _selectedCategories.map((category) {
+        final allowance = _categoryAllowances[category] ?? {'type': 'fixed', 'amount': 0.0};
+        return {
+          'name': category,
+          'allowanceType': allowance['type'] ?? 'fixed',
+          'allowanceAmount': allowance['amount'] ?? 0.0,
+          'required': true,
+        };
+      }).toList();
+
+      await FirebaseFirestore.instance
+          .collection('builderOrgs')
+          .doc(builderOrgId)
+          .collection('templates')
+          .add({
+        'name': templateName,
+        'description': 'Saved from project setup',
+        'rooms': {
+          'bedrooms': int.tryParse(_bedroomsController.text) ?? 0,
+          'bathrooms': int.tryParse(_bathroomsController.text) ?? 0,
+          'offices': int.tryParse(_officesController.text) ?? 0,
+        },
+        'fixtureCounts': {
+          'lightingFixtures': int.tryParse(_fixturesController.text) ?? 0,
+          'plumbingFixtures': int.tryParse(_fixturesController.text) ?? 0,
+        },
+        'selectedRooms': _selectedRooms,
+        'categories': categories,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdBy': currentUserUid,
+        'usageCount': 0,
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Template saved.'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error saving template: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _loadTemplate() async {
+    try {
+      final builderOrgId = await _loadBuilderOrgId();
+      if (builderOrgId == null || builderOrgId.isEmpty) {
+        throw Exception('Builder organization not found');
+      }
+
+      final templatesSnap = await FirebaseFirestore.instance
+          .collection('builderOrgs')
+          .doc(builderOrgId)
+          .collection('templates')
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      if (templatesSnap.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No templates found.'), backgroundColor: Color(0xFF8B8680)),
+        );
+        return;
+      }
+
+      final selectedTemplate = await showDialog<DocumentSnapshot<Map<String, dynamic>>>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: Text('Load Template'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: templatesSnap.docs.length,
+                separatorBuilder: (_, __) => Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final doc = templatesSnap.docs[index];
+                  final data = doc.data();
+                  return ListTile(
+                    title: Text(data['name']?.toString() ?? 'Unnamed Template'),
+                    subtitle: Text(data['description']?.toString() ?? 'Project setup template'),
+                    onTap: () => Navigator.pop(dialogContext, doc),
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (selectedTemplate == null) return;
+
+      final data = selectedTemplate.data() ?? {};
+      final roomsMap = (data['rooms'] as Map<String, dynamic>?) ?? {};
+      final categoriesList = (data['categories'] as List?) ?? [];
+      final selectedRooms = (data['selectedRooms'] as List?)?.map((e) => e.toString()).toList() ?? <String>[];
+
+      final loadedCategories = <String>[];
+      final loadedAllowances = <String, Map<String, dynamic>>{};
+      for (final c in categoriesList) {
+        if (c is Map<String, dynamic>) {
+          final name = (c['name'] ?? '').toString();
+          if (name.isEmpty) continue;
+          loadedCategories.add(name);
+          loadedAllowances[name] = {
+            'type': (c['allowanceType'] ?? 'fixed').toString(),
+            'amount': (c['allowanceAmount'] is num) ? (c['allowanceAmount'] as num).toDouble() : 0.0,
+          };
+        }
+      }
+
+      setState(() {
+        _bedroomsController.text = (roomsMap['bedrooms'] ?? 0).toString();
+        _bathroomsController.text = (roomsMap['bathrooms'] ?? 0).toString();
+        _officesController.text = (roomsMap['offices'] ?? 0).toString();
+        _fixturesController.text = ((data['fixtureCounts'] as Map<String, dynamic>?)?['lightingFixtures'] ?? 0).toString();
+        _selectedRooms = selectedRooms;
+        _selectedCategories = loadedCategories.isEmpty ? List<String>.from(_categoryOptions) : loadedCategories;
+        _categoryAllowances = loadedAllowances;
+        _initializeCategoryAllowances();
+      });
+
+      await selectedTemplate.reference.update({
+        'usageCount': FieldValue.increment(1),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Template loaded.'), backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading template: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _projectNameController.dispose();
@@ -123,6 +323,7 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
         'builderOrgId': builderOrgId,
         'status': 'active',
         'clientIds': [],
+        'categoryAllowances': _categoryAllowances,
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': currentUserUid,
       });
@@ -138,10 +339,15 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
       final batch2 = FirebaseFirestore.instance.batch();
 
       for (var i = 0; i < _selectedCategories.length; i++) {
+        final categoryName = _selectedCategories[i];
+        final allowanceConfig = _categoryAllowances[categoryName] ??
+            {'type': 'fixed', 'amount': 0.0};
         final categoryRef = projectRef.collection('categories').doc();
         batch2.set(categoryRef, {
-          'name': _selectedCategories[i],
+          'name': categoryName,
           'required': true,
+          'allowanceType': allowanceConfig['type'] ?? 'fixed',
+          'allowanceAmount': allowanceConfig['amount'] ?? 0.0,
           'displayOrder': i,
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -168,6 +374,7 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
                 : 'Client',
             projectId: projectRef.id,
             projectName: projectName,
+            invitedBy: currentUserUid,
           );
           
           if (result['success'] == true) {
@@ -219,6 +426,38 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
               Expanded(child: _buildTextField('TOTAL SQ FT', _sqFtController, '2,400')),
               SizedBox(width: 16.0),
               Expanded(child: _buildTextField('TOTAL BUDGET', _budgetController, '\$450,000')),
+            ],
+          ),
+          SizedBox(height: 16.0),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _loadTemplate,
+                  icon: Icon(Icons.upload_file_rounded, color: Color(0xFFB8956A), size: 18.0),
+                  label: Text('Load Template', style: TextStyle(color: Color(0xFFB8956A), fontWeight: FontWeight.w600)),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Color(0xFFD4C4B0), width: 1.2),
+                    backgroundColor: Color(0xFFFDFBF8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                  ),
+                ),
+              ),
+              SizedBox(width: 10.0),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _saveAsTemplate,
+                  icon: Icon(Icons.save_as_rounded, color: Colors.white, size: 18.0),
+                  label: Text('Save Template', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFB8956A),
+                    elevation: 0.0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                  ),
+                ),
+              ),
             ],
           ),
           SizedBox(height: 16.0),
@@ -286,6 +525,141 @@ class _BuilderProjectSetupWidgetState extends State<BuilderProjectSetupWidget> {
               );
             }).toList(),
           ),
+          if (_selectedCategories.isNotEmpty) ...[
+            SizedBox(height: 24.0),
+            Text(
+              'Category Budgets',
+              style: FlutterFlowTheme.of(context).titleMedium.override(
+                font: GoogleFonts.interTight(fontWeight: FontWeight.w700),
+                color: Color(0xFF2C2C2C),
+              ),
+            ),
+            SizedBox(height: 8.0),
+            Text(
+              'Set fixed allowance or price per sq ft for each selected category.',
+              style: FlutterFlowTheme.of(context).bodySmall.override(
+                font: GoogleFonts.inter(),
+                color: Color(0xFF8B8680),
+              ),
+            ),
+            SizedBox(height: 12.0),
+            ..._selectedCategories.map((category) {
+              final config = _categoryAllowances[category] ??
+                  {'type': 'fixed', 'amount': 0.0};
+              final type = (config['type'] ?? 'fixed').toString();
+              final amount = (config['amount'] ?? 0.0).toString();
+              final isFixed = type == 'fixed';
+              return Container(
+                margin: EdgeInsets.only(bottom: 12.0),
+                padding: EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFAF8F5),
+                  borderRadius: BorderRadius.circular(12.0),
+                  border: Border.all(color: Color(0xFFE6DDD2), width: 1.0),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      category,
+                      style: TextStyle(
+                        color: Color(0xFF2C2C2C),
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 10.0),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ChoiceChip(
+                            label: Text('Fixed Allowance'),
+                            selected: isFixed,
+                            onSelected: (_) {
+                              setState(() {
+                                _categoryAllowances[category] = {
+                                  'type': 'fixed',
+                                  'amount': config['amount'] ?? 0.0,
+                                };
+                              });
+                            },
+                            selectedColor: Color(0xFFF5EDE3),
+                            labelStyle: TextStyle(
+                              color: isFixed ? Color(0xFFB8956A) : Color(0xFF8B8680),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.0,
+                            ),
+                            side: BorderSide(
+                              color: isFixed ? Color(0xFFB8956A) : Color(0xFFD4C4B0),
+                            ),
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 8.0),
+                        Expanded(
+                          child: ChoiceChip(
+                            label: Text('Price / sq ft'),
+                            selected: !isFixed,
+                            onSelected: (_) {
+                              setState(() {
+                                _categoryAllowances[category] = {
+                                  'type': 'perSqFt',
+                                  'amount': config['amount'] ?? 0.0,
+                                };
+                              });
+                            },
+                            selectedColor: Color(0xFFF5EDE3),
+                            labelStyle: TextStyle(
+                              color: !isFixed ? Color(0xFFB8956A) : Color(0xFF8B8680),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12.0,
+                            ),
+                            side: BorderSide(
+                              color: !isFixed ? Color(0xFFB8956A) : Color(0xFFD4C4B0),
+                            ),
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10.0),
+                    TextFormField(
+                      key: ValueKey('${category}_$type'),
+                      initialValue: amount == '0.0' ? '' : amount,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (value) {
+                        setState(() {
+                          _categoryAllowances[category] = {
+                            'type': type,
+                            'amount': _parseAllowanceAmount(value),
+                          };
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: isFixed ? 'Allowance Amount' : 'Rate per sq ft',
+                        hintText: isFixed ? '\$0.00' : '\$0.00 / sq ft',
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.3),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: Color(0xFFD4C4B0), width: 1.3),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          borderSide: BorderSide(color: Color(0xFFB8956A), width: 1.3),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ],
         ],
       ),
     );

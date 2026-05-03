@@ -1,14 +1,12 @@
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
-import '/flutter_flow/flutter_flow_widgets.dart';
+import '/flutter_flow/user_network_avatar.dart';
 import '/auth/firebase_auth/auth_util.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'profile_settings_model.dart';
 export 'profile_settings_model.dart';
 
@@ -58,8 +56,6 @@ class _ProfileSettingsWidgetState extends State<ProfileSettingsWidget> {
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>?;
         final photoUrl = userData?['photoUrl'] as String? ?? '';
-        print('DEBUG: User data loaded');
-        print('DEBUG: PhotoUrl from Firestore: $photoUrl');
         setState(() {
           _userName = userData?['displayName'] as String? ?? 'User';
           _userEmail = userData?['email'] as String? ?? currentUserEmail;
@@ -83,6 +79,31 @@ class _ProfileSettingsWidgetState extends State<ProfileSettingsWidget> {
     }
   }
 
+  /// Detect real image format so Storage metadata matches bytes (avoids web decode errors).
+  (String ext, String mimeType) _avatarFormatForBytes(Uint8List bytes) {
+    if (bytes.length >= 12) {
+      if (bytes[0] == 0x89 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x4E &&
+          bytes[3] == 0x47) {
+        return ('png', 'image/png');
+      }
+      if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+        return ('jpg', 'image/jpeg');
+      }
+      if (bytes[0] == 0x52 &&
+          bytes[1] == 0x49 &&
+          bytes[2] == 0x46 &&
+          bytes[3] == 0x46) {
+        final tag = String.fromCharCodes(bytes.sublist(8, 12));
+        if (tag == 'WEBP') {
+          return ('webp', 'image/webp');
+        }
+      }
+    }
+    return ('jpg', 'image/jpeg');
+  }
+
   Future<void> _uploadPhoto() async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -99,29 +120,19 @@ class _ProfileSettingsWidgetState extends State<ProfileSettingsWidget> {
         _isUploading = true;
       });
 
-      // Upload to Firebase Storage
+      final bytes = await image.readAsBytes();
+      final (ext, mime) = _avatarFormatForBytes(bytes);
+
+      // Upload to Firebase Storage (extension + contentType must match actual bytes)
       final storageRef = FirebaseStorage.instance
           .ref()
           .child('user_avatars')
-          .child('$currentUserUid.jpg');
+          .child('$currentUserUid.$ext');
 
-      // Handle web vs mobile differently
-      UploadTask uploadTask;
-      if (kIsWeb) {
-        // For web, read as bytes
-        final bytes = await image.readAsBytes();
-        uploadTask = storageRef.putData(
-          bytes,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-      } else {
-        // For mobile, use file path (this won't run on web)
-        final bytes = await image.readAsBytes();
-        uploadTask = storageRef.putData(
-          bytes,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-      }
+      final uploadTask = storageRef.putData(
+        bytes,
+        SettableMetadata(contentType: mime),
+      );
 
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
@@ -408,12 +419,7 @@ class _ProfileSettingsWidgetState extends State<ProfileSettingsWidget> {
                           padding: EdgeInsets.all(24.0),
                           child: Column(
                             children: [
-                              Builder(
-                                builder: (context) {
-                                  print('DEBUG: Building avatar with photoUrl: "$_userPhotoUrl"');
-                                  print('DEBUG: isEmpty: ${_userPhotoUrl.isEmpty}');
-                                  print('DEBUG: isNotEmpty: ${_userPhotoUrl.isNotEmpty}');
-                                  return Stack(
+                              Stack(
                                 children: [
                                   Container(
                                     width: 80.0,
@@ -425,38 +431,35 @@ class _ProfileSettingsWidgetState extends State<ProfileSettingsWidget> {
                                     child: _userPhotoUrl.isNotEmpty
                                         ? ClipRRect(
                                             borderRadius: BorderRadius.circular(50.0),
-                                            child: CachedNetworkImage(
+                                            child: userNetworkAvatar(
                                               imageUrl: _userPhotoUrl,
                                               width: 80.0,
                                               height: 80.0,
                                               fit: BoxFit.cover,
-                                              placeholder: (context, url) => Center(
+                                              placeholder: Center(
                                                 child: CircularProgressIndicator(
                                                   valueColor: AlwaysStoppedAnimation<Color>(
                                                     Color(0xFFB8956A),
                                                   ),
                                                 ),
                                               ),
-                                              errorWidget: (context, url, error) {
-                                                print('DEBUG: CachedNetworkImage error: $error');
-                                                return Center(
-                                                  child: Text(
-                                                    _userName.isNotEmpty
-                                                        ? _userName[0].toUpperCase()
-                                                        : 'U',
-                                                    style: FlutterFlowTheme.of(context)
-                                                        .headlineLarge
-                                                        .override(
-                                                          font: GoogleFonts.inter(
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                          color: Colors.white,
-                                                          fontSize: 32.0,
-                                                          letterSpacing: 0.0,
+                                              errorBuilder: (context, error) => Center(
+                                                child: Text(
+                                                  _userName.isNotEmpty
+                                                      ? _userName[0].toUpperCase()
+                                                      : 'U',
+                                                  style: FlutterFlowTheme.of(context)
+                                                      .headlineLarge
+                                                      .override(
+                                                        font: GoogleFonts.inter(
+                                                          fontWeight: FontWeight.bold,
                                                         ),
-                                                  ),
-                                                );
-                                              },
+                                                        color: Colors.white,
+                                                        fontSize: 32.0,
+                                                        letterSpacing: 0.0,
+                                                      ),
+                                                ),
+                                              ),
                                             ),
                                           )
                                         : Center(
@@ -514,8 +517,6 @@ class _ProfileSettingsWidgetState extends State<ProfileSettingsWidget> {
                                     ),
                                   ),
                                 ],
-                              );
-                              },
                               ),
                               SizedBox(height: 16.0),
                               Text(
